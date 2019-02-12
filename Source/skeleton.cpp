@@ -41,12 +41,10 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle>& triangles, Inte
 
 int main( int argc, char* argv[] )
 {
-  
-  
+
   screen *screen = InitializeSDL( SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE );
 
   vector<Triangle> triangles;
-
 
   LoadTestModel(triangles);
 
