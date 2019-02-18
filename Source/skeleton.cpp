@@ -27,6 +27,7 @@ struct Intersection
 };
 
 vector<Triangle> triangles;
+vec4 cameraPos(0.0, 0.0, -3, 1.0);
 
 /* --------------------------GLOBALS ---------------------------------*/
 
@@ -65,7 +66,7 @@ void Draw(screen *screen)
   Intersection intersection;
 
   float focalLength = (float) SCREEN_WIDTH;
-  vec4 cameraPos(0.0, 0.0, -3, 1.0);
+  
 
   vec3 colour(1.0, 0.0, 0.0);
   for (int x = 0; x < SCREEN_WIDTH; x++){
@@ -87,6 +88,11 @@ bool Update()
   int t2 = SDL_GetTicks();
   float dt = float(t2 - t);
   t = t2;
+  vec4 moveForward(0,0,1,1);
+  vec4 moveBackward(0,0,-1,1);
+  vec4 moveLeft(-1,0,0,1);
+  vec4 moveRight(1,0,-1,1);
+  
 
   SDL_Event e;
   while (SDL_PollEvent(&e))
@@ -102,16 +108,19 @@ bool Update()
       {
       case SDLK_UP:
         /* Move camera forward */
-        break;
+        
+        cameraPos = cameraPos + moveForward;
+        return true;
+
       case SDLK_DOWN:
-        /* Move camera backwards */
-        break;
+        cameraPos = cameraPos + moveBackward;
+        return true;
       case SDLK_LEFT:
-        /* Move camera left */
-        break;
+       cameraPos = cameraPos + moveLeft;
+        return true;
       case SDLK_RIGHT:
-        /* Move camera right */
-        break;
+        cameraPos = cameraPos + moveRight;
+        return true;
       case SDLK_ESCAPE:
         /* Move camera quit */
         return false;
@@ -139,6 +148,8 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
     vec3 d(dir.x, dir.y, dir.z);
 
     mat3 A(-d, e1, e2);
+
+   
     vec3 x = glm::inverse(A) * b;
 
     float t = x.x;
