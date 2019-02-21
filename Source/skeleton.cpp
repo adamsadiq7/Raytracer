@@ -99,14 +99,15 @@ void Draw(screen *screen)
 vec3 DirectLight(const Intersection &i)
 {
   vec3 R(i.position.x - lightPos.x, i.position.y - lightPos.y, i.position.z - lightPos.z);
-  vec3 normalisedR = normalize(R);
+  vec3 normalisedR = glm::normalize(-R);
 
   vec3 normal = vec3(triangles[i.triangleIndex].normal);
 
   float radius = R.x * R.x + R.y * R.y + R.z * R.z;
-  float sphereSurfaceArea = 4 * M_PI * radius * radius;
-  vec3 powerPerArea = (1 / sphereSurfaceArea) * vec3(lightColor);
-  vec3 surfacePower = powerPerArea * glm::max(0.0f, 1.0f /*(glm::dot(normalisedR, normal)*/);
+  float sphereSurfaceArea = 4.0f * M_PI * radius;
+
+  vec3 powerPerArea = (1.0f/ sphereSurfaceArea) * vec3(lightColor);
+  vec3 surfacePower =  powerPerArea*glm::max(0.0f, /*1.0f*/ glm::dot(normalisedR, normal));
 
   return surfacePower;
 }
