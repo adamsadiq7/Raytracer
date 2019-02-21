@@ -5,6 +5,8 @@
 #include "TestModelH.h"
 #include <stdint.h>
 #include "limits.h"
+#include <math.h>
+#include <stdlib.h>
 
 using namespace std;
 using glm::mat3;
@@ -32,13 +34,15 @@ vec4 cameraPos(0.0, 0.0, -3, 1.0);
 float theta = 0.0;
 
 /* --------------------------GLOBALS ---------------------------------*/
-
+vec4 lightPos(0.0, -0.5, -0.7, 1.0);
+vec3 lightColor = 14.f * vec3(1, 1, 1);
 /* ----------------------------------------------------------------------------*/
 //  FUNCTIONS                                                                   */
 
 bool Update();
 void Draw(screen *screen);
 bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection);
+vec3 DirectLight(const Intersection &i);
 // vec4 setRotation(vec4 point);
 
 int main(int argc, char *argv[])
@@ -60,8 +64,9 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-float toRadian(float x){
-  return x  * 3.1415/180;
+float toRadian(float x)
+{
+  return x * 3.1415 / 180;
 }
 
 // / Place your drawing here /
@@ -83,10 +88,27 @@ void Draw(screen *screen)
       d = glm::normalize(d);
       if (closestIntersection(cameraPos, d, triangles, intersection))
       {
-        PutPixelSDL(screen, x, y, triangles[intersection.triangleIndex].color);
+
+        PutPixelSDL(screen, x, y, DirectLight(intersection));
+        //PutPixelSDL(screen, x, y, triangles[intersection.triangleIndex].color);
       }
     }
   }
+}
+
+vec3 DirectLight(const Intersection &i)
+{
+  vec3 R(i.position.x - lightPos.x, i.position.y - lightPos.y, i.position.z - lightPos.z);
+  vec3 normalisedR = normalize(R);
+
+  vec3 normal = vec3(triangles[i.triangleIndex].normal);
+
+  float radius = R.x * R.x + R.y * R.y + R.z * R.z;
+  float sphereSurfaceArea = 4 * M_PI * radius * radius;
+  vec3 powerPerArea = (1 / sphereSurfaceArea) * vec3(lightColor);
+  vec3 surfacePower = powerPerArea * glm::max(0.0f, 1.0f /*(glm::dot(normalisedR, normal)*/);
+
+  return surfacePower;
 }
 
 // / Place updates of parameters here /
@@ -103,7 +125,6 @@ bool Update()
   vec4 moveBackward(0, 0, -1, 1);
   vec4 moveLeft(-1, 0, 0, 1);
   vec4 moveRight(1, 0, -1, 1);
-  
 
   SDL_Event e;
   while (SDL_PollEvent(&e))
@@ -117,23 +138,27 @@ bool Update()
       int key_code = e.key.keysym.sym;
       switch (key_code)
       {
-      case SDLK_UP:{
+      case SDLK_UP:
+      {
         /* Move camera forward */
         cameraPos = cameraPos + moveForward;
         // return true;
         break;
       }
-      case SDLK_DOWN:{
+      case SDLK_DOWN:
+      {
         cameraPos = cameraPos + moveBackward;
         // return true;
         break;
       }
-      case SDLK_LEFT: {
+      case SDLK_LEFT:
+      {
         theta -= 0.05;
         // return true;
         break;
       }
-      case SDLK_RIGHT:{
+      case SDLK_RIGHT:
+      {
         theta += 0.05;
         std::cout << "theta: " << theta << "\n";
 
@@ -142,15 +167,35 @@ bool Update()
         // return true;
         break;
       }
-      case SDLK_ESCAPE:{
+      case SDLK_ESCAPE:
+      {
         /* Move camera quit */
         // return false;
         break;
       }
-      // case default:
-      //   break;
+      case SDLK_w:
+      {
+        lightPos += moveForward;
+        break;
       }
-
+      case SDLK_s:
+      {
+        lightPos += moveBackward;
+        break;
+      }
+      case SDLK_a:
+      {
+        lightPos += moveLeft;
+        break;
+      }
+      case SDLK_d:
+      {
+        lightPos += moveRight;
+        break;
+      }
+        // case default:
+        //   break;
+      }
     }
   }
   return true;
@@ -164,7 +209,7 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
   vec4 d1r(cos(theta), 0, sin(theta), 0);
   vec4 d2r(0, 1, 0, 0);
   vec4 d3r(-sin(theta), 0, cos(theta), 0);
-  vec4 d4r(0,0,0,1);
+  vec4 d4r(0, 0, 0, 1);
   mat4 yRot(d1r, d2r, d3r, d4r);
 
   float lowest = std::numeric_limits<float>::max();
@@ -172,15 +217,13 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
   {
 
     vec4 v0 = yRot * triangles[i].v0;
-    vec4 v1 = yRot *triangles[i].v1;
+    vec4 v1 = yRot * triangles[i].v1;
 
-    vec4 v2 = yRot *triangles[i].v2;
+    vec4 v2 = yRot * triangles[i].v2;
 
     vec3 e1 = vec3(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z);
     vec3 e2 = vec3(v2.x - v0.x, v2.y - v0.y, v2.z - v0.z);
     vec3 b = vec3(start.x - v0.x, start.y - v0.y, start.z - v0.z);
-
-    // dir = yRot *  dir;
 
     vec3 d(dir.x, dir.y, dir.z);
 
@@ -193,20 +236,18 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
     float u = x.y;
     float v = x.z;
 
-    float glmT = glm::length(vec3(t,u,v));
-
-    if (glmT >= 0)
+    if (t >= 0)
     {
 
       if ((u >= 0) && (v >= 0) && ((u + v) <= 1) && t >= 0)
       {
-        if (glmT < lowest)
+        if (t < lowest)
         {
 
-          closestIntersection.distance = glmT;
-          closestIntersection.position =  (start + (glmT * dir));
+          closestIntersection.distance = t;
+          closestIntersection.position = (start + (t * dir));
           closestIntersection.triangleIndex = i;
-          lowest = glmT;
+          lowest = t;
           found = true;
         }
       }
@@ -214,7 +255,3 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
   }
   return found;
 }
-
-// vec4 setRotation(vec4 point){
-//   return yRot * point;
-// }
