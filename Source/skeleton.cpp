@@ -103,18 +103,7 @@ bool Update()
   vec4 moveBackward(0, 0, -1, 1);
   vec4 moveLeft(-1, 0, 0, 1);
   vec4 moveRight(1, 0, -1, 1);
-  //------------------------------
-
-  //---- Rotation Matrix ---------
-  // float theta = 10 * 3.1415/180;
-
-
-
-  // vec4 right(R[0][0], R[0][1],R[0][2], 1);
-  // vec4 down(R[1][0], R[1][1], R[1][2], 1);
-  // vec4 forward(R[2][0], R[2][1], R[2][2], 1);
-
-  //------------------------------
+  
 
   SDL_Event e;
   while (SDL_PollEvent(&e))
