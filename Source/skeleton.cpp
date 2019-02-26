@@ -21,8 +21,7 @@ SDL_Event event;
 #define FULLSCREEN_MODE false
 
 /* --------------------------GLOBALS ---------------------------------*/
-struct Intersection
-{
+struct Intersection{
   vec4 position;
   float distance;
   int triangleIndex;
@@ -42,17 +41,15 @@ vec3 lightColor = 14.f * vec3(1, 1, 1);
 bool Update();
 void Draw(screen *screen);
 bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection);
-vec3 DirectLight(Intersection &i);
+vec3 DirectLight(const Intersection &i);
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
 
   screen *screen = InitializeSDL(SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE);
 
   LoadTestModel(triangles);
 
-  while (Update())
-  {
+  while (Update()){
     Draw(screen);
     SDL_Renderframe(screen);
   }
@@ -63,14 +60,12 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-float toRadian(float x)
-{
+float toRadian(float x){
   return x * 3.1415 / 180;
 }
 
 // / Place your drawing here /
-void Draw(screen *screen)
-{
+void Draw(screen *screen){
   /* Clear buffer */
   memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
 
@@ -79,14 +74,11 @@ void Draw(screen *screen)
   float focalLength = (float)SCREEN_WIDTH;
 
   vec3 colour(1.0, 0.0, 0.0);
-  for (int x = 0; x < SCREEN_WIDTH; x++)
-  {
-    for (int y = 0; y < SCREEN_HEIGHT; y++)
-    {
+  for (int x = 0; x < SCREEN_WIDTH; x++){
+    for (int y = 0; y < SCREEN_HEIGHT; y++){
       vec4 d(x - SCREEN_WIDTH / 2, y - SCREEN_WIDTH / 2, focalLength, 1);
       d = glm::normalize(d);
-      if (closestIntersection(cameraPos, d, triangles, intersection))
-      {
+      if (closestIntersection(cameraPos, d, triangles, intersection)){
         PutPixelSDL(screen, x, y, DirectLight(intersection));
         //PutPixelSDL(screen, x, y, triangles[intersection.triangleIndex].color);
       }
@@ -94,7 +86,10 @@ void Draw(screen *screen)
   }
 }
 
-vec3 DirectLight(Intersection &i){
+vec3 DirectLight(const Intersection &i){
+
+  Intersection intermediate;
+
   vec3 R(i.position.x - lightPos.x, i.position.y - lightPos.y, i.position.z - lightPos.z);
   vec3 normalisedR = glm::normalize(-R);
 
@@ -105,27 +100,22 @@ vec3 DirectLight(Intersection &i){
 
   vec4 currentPosition(i.position.x, i.position.y, i.position.z, 1); // current intersection position
 
-  bool shadow = false; //boolean to check if it should give shadow or not
-
-  closestIntersection(currentPosition, lightPos, triangles, i);
-  if (i.distance >= glm::distance(currentPosition, lightPos)){
-    shadow = true;
-  }
-  else{
-    shadow = false;
-  }
-
   vec3 powerPerArea = (1.0f / sphereSurfaceArea) * vec3(lightColor);
-  if (!shadow)
-    powerPerArea = vec3(0, 0, 0);
-  vec3 surfacePower = triangles[i.triangleIndex].color * powerPerArea * glm::max(0.0f, /*1.0f*/ glm::dot(normalisedR, normal));
 
-  return surfacePower;
+  vec4 normalA(normal.x, normal.y,normal.z, 1);
+
+  if(closestIntersection(currentPosition + 0.05f*normalA, lightPos, triangles, intermediate)){
+    if (intermediate.distance < glm::distance(currentPosition, lightPos)){
+      powerPerArea = vec3(0, 0, 0);
+    }
+  }
+  vec3 surfacePower = triangles[i.triangleIndex].color * powerPerArea * glm::max(0.0f, glm::dot(normalisedR, normal));
+
+  return i.position;
 }
 
 // / Place updates of parameters here /
-bool Update()
-{
+bool Update(){
   static int t = SDL_GetTicks();
   /* Compute frame time */
   int t2 = SDL_GetTicks();
@@ -139,66 +129,53 @@ bool Update()
   vec4 moveRight(1, 0, -1, 1);
 
   SDL_Event e;
-  while (SDL_PollEvent(&e))
-  {
-    if (e.type == SDL_QUIT)
-    {
+  while (SDL_PollEvent(&e)){
+    if (e.type == SDL_QUIT){
       return false;
     }
-    else if (e.type == SDL_KEYDOWN)
-    {
+    else if (e.type == SDL_KEYDOWN){
       int key_code = e.key.keysym.sym;
-      switch (key_code)
-      {
-      case SDLK_UP:
-      {
+      switch (key_code){
+      case SDLK_UP:{
         /* Move camera forward */
         cameraPos = cameraPos + moveForward;
         // return true;
         break;
       }
-      case SDLK_DOWN:
-      {
+      case SDLK_DOWN:{
         cameraPos = cameraPos + moveBackward;
         // return true;
         break;
       }
-      case SDLK_LEFT:
-      {
+      case SDLK_LEFT:{
         theta -= 0.05;
         // return true;
         break;
       }
-      case SDLK_RIGHT:
-      {
+      case SDLK_RIGHT:{
         theta += 0.05;
 
         // return true;
         break;
       }
-      case SDLK_ESCAPE:
-      {
+      case SDLK_ESCAPE:{
         /* Move camera quit */
         // return false;
         break;
       }
-      case SDLK_w:
-      {
+      case SDLK_w:{
         lightPos += moveForward;
         break;
       }
-      case SDLK_s:
-      {
+      case SDLK_s:{
         lightPos += moveBackward;
         break;
       }
-      case SDLK_a:
-      {
+      case SDLK_a:{
         lightPos += moveLeft;
         break;
       }
-      case SDLK_d:
-      {
+      case SDLK_d:{
         lightPos += moveRight;
         break;
       }
@@ -210,8 +187,7 @@ bool Update()
   return true;
 }
 
-bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection)
-{
+bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection){
 
   bool found = false;
 
@@ -222,20 +198,21 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
   mat4 yRot(d1r, d2r, d3r, d4r);
 
   float lowest = std::numeric_limits<float>::max();
-  for (int i = 0; i < triangles.size(); ++i)
-  {
+  for (int i = 0; i < triangles.size(); ++i){
     vec4 v0 = yRot * triangles[i].v0;
     vec4 v1 = yRot * triangles[i].v1;
 
     vec4 v2 = yRot * triangles[i].v2;
 
-    vec3 e1 = vec3(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z);
-    vec3 e2 = vec3(v2.x - v0.x, v2.y - v0.y, v2.z - v0.z);
-    vec3 b = vec3(start.x - v0.x, start.y - v0.y, start.z - v0.z);
+    vec4 e1 = vec4(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z, 1);
+    vec4 e2 = vec4(v2.x - v0.x, v2.y - v0.y, v2.z - v0.z, 1);
+    vec4 b = vec4(start.x - v0.x, start.y - v0.y, start.z - v0.z, 1); //start - v0 (better code readability)
 
     vec3 d(dir.x, dir.y, dir.z);
 
-    mat3 A(-d, e1, e2);
+    d = glm::normalize(d);
+
+    mat3 A(-d, vec3(e1), vec3(e2));
 
     vec3 x = glm::inverse(A) * b;
 
@@ -244,22 +221,16 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
     float u = x.y;
     float v = x.z;
 
-    if (t >= 0)
-    {
-
-      if ((u >= 0) && (v >= 0) && ((u + v) <= 1) && t >= 0)
-      {
-        if (t < lowest)
-        {
-
-          closestIntersection.distance = t;
-          closestIntersection.position = (start + (t * dir));
-          closestIntersection.triangleIndex = i;
-          lowest = t;
-          found = true;
-        }
+    if ((u >= 0) && (v >= 0) && ((u + v) <= 1) && t >= 0){
+      if (t < lowest){
+        closestIntersection.distance = t;
+        closestIntersection.position = /*(u * e1 + v * e2 + v0); */ start + (t * dir);
+        closestIntersection.triangleIndex = i;
+        lowest = t;
+        found = true;
       }
     }
+
   }
   return found;
 }
