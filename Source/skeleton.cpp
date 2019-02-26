@@ -111,7 +111,7 @@ vec3 DirectLight(const Intersection &i){
   }
   vec3 surfacePower = triangles[i.triangleIndex].color * powerPerArea * glm::max(0.0f, glm::dot(normalisedR, normal));
 
-  return i.position;
+  return surfacePower;
 }
 
 // / Place updates of parameters here /
