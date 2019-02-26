@@ -42,8 +42,7 @@ vec3 lightColor = 14.f * vec3(1, 1, 1);
 bool Update();
 void Draw(screen *screen);
 bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection);
-vec3 DirectLight(const Intersection &i);
-// vec4 setRotation(vec4 point);
+vec3 DirectLight(Intersection &i);
 
 int main(int argc, char *argv[])
 {
@@ -88,7 +87,6 @@ void Draw(screen *screen)
       d = glm::normalize(d);
       if (closestIntersection(cameraPos, d, triangles, intersection))
       {
-
         PutPixelSDL(screen, x, y, DirectLight(intersection));
         //PutPixelSDL(screen, x, y, triangles[intersection.triangleIndex].color);
       }
@@ -96,20 +94,31 @@ void Draw(screen *screen)
   }
 }
 
-vec3 DirectLight(const Intersection &i)
-{
+vec3 DirectLight(Intersection &i){
   vec3 R(i.position.x - lightPos.x, i.position.y - lightPos.y, i.position.z - lightPos.z);
   vec3 normalisedR = glm::normalize(-R);
 
-
-  
   vec3 normal = vec3(triangles[i.triangleIndex].normal);
 
   float radius = R.x * R.x + R.y * R.y + R.z * R.z;
   float sphereSurfaceArea = 4.0f * M_PI * radius;
 
-  vec3 powerPerArea = (1.0f/ sphereSurfaceArea) * vec3(lightColor);
-  vec3 surfacePower = triangles[i.triangleIndex].color * powerPerArea*glm::max(0.0f, /*1.0f*/ glm::dot(normalisedR, normal));
+  vec4 currentPosition(i.position.x, i.position.y, i.position.z, 1); // current intersection position
+
+  bool shadow = false; //boolean to check if it should give shadow or not
+
+  closestIntersection(currentPosition, lightPos, triangles, i);
+  if (i.distance >= glm::distance(currentPosition, lightPos)){
+    shadow = true;
+  }
+  else{
+    shadow = false;
+  }
+
+  vec3 powerPerArea = (1.0f / sphereSurfaceArea) * vec3(lightColor);
+  if (!shadow)
+    powerPerArea = vec3(0, 0, 0);
+  vec3 surfacePower = triangles[i.triangleIndex].color * powerPerArea * glm::max(0.0f, /*1.0f*/ glm::dot(normalisedR, normal));
 
   return surfacePower;
 }
@@ -163,9 +172,6 @@ bool Update()
       case SDLK_RIGHT:
       {
         theta += 0.05;
-        std::cout << "theta: " << theta << "\n";
-
-        // cameraPos = rightRot * cameraPos;
 
         // return true;
         break;
@@ -218,7 +224,6 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
   float lowest = std::numeric_limits<float>::max();
   for (int i = 0; i < triangles.size(); ++i)
   {
-
     vec4 v0 = yRot * triangles[i].v0;
     vec4 v1 = yRot * triangles[i].v1;
 
