@@ -90,26 +90,29 @@ vec3 DirectLight(const Intersection &i){
 
   Intersection intermediate;
 
-  vec3 R(i.position.x - lightPos.x, i.position.y - lightPos.y, i.position.z - lightPos.z);
-  vec3 normalisedR = glm::normalize(-R);
-
+  // vec3 R(i.position.x - lightPos.x, i.position.y - lightPos.y, i.position.z - lightPos.z);
+  vec3 direction = vec3(lightPos - i.position);
+  vec3 normalisedDir = glm::normalize(direction);
   vec3 normal = vec3(triangles[i.triangleIndex].normal);
 
-  float radius = R.x * R.x + R.y * R.y + R.z * R.z;
-  float sphereSurfaceArea = 4.0f * M_PI * radius;
+  // float radius = R.x * R.x + R.y * R.y + R.z * R.z;
+  float radius = glm::distance(i.position, lightPos);
 
-  vec4 currentPosition(i.position.x, i.position.y, i.position.z, 1); // current intersection position
+  float sphereSurfaceArea = 4.0f * M_PI * radius*radius;
+
+  vec4 currentPosition = i.position;  // current intersection position
 
   vec3 powerPerArea = (1.0f / sphereSurfaceArea) * vec3(lightColor);
 
   vec4 normalA(normal.x, normal.y,normal.z, 1);
 
-  if(closestIntersection(currentPosition + 0.05f*normalA, lightPos, triangles, intermediate)){
+  if(closestIntersection(currentPosition, lightPos-currentPosition, triangles, intermediate)){
     if (intermediate.distance < glm::distance(currentPosition, lightPos)){
       powerPerArea = vec3(0, 0, 0);
+      
     }
   }
-  vec3 surfacePower = triangles[i.triangleIndex].color * powerPerArea * glm::max(0.0f, glm::dot(normalisedR, normal));
+  vec3 surfacePower = triangles[i.triangleIndex].color * powerPerArea * glm::max(0.0f, glm::dot(normalisedDir, normal));
 
   return surfacePower;
 }
@@ -204,17 +207,16 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
 
     vec4 v2 = yRot * triangles[i].v2;
 
-    vec4 e1 = vec4(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z, 1);
-    vec4 e2 = vec4(v2.x - v0.x, v2.y - v0.y, v2.z - v0.z, 1);
-    vec4 b = vec4(start.x - v0.x, start.y - v0.y, start.z - v0.z, 1); //start - v0 (better code readability)
+    vec4 e1 = vec4(v1-v0);
+    vec4 e2 = vec4(v2-v0);
+    vec4 b = vec4(start-v0);
 
-    vec3 d(dir.x, dir.y, dir.z);
-
-    d = glm::normalize(d);
+    vec3 d = glm::normalize(vec3(dir));
+    //d = glm::normalize(d);
 
     mat3 A(-d, vec3(e1), vec3(e2));
 
-    vec3 x = glm::inverse(A) * b;
+    vec3 x = glm::inverse(A) * vec3(b);
 
     float t = x.x;
 
