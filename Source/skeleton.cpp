@@ -35,6 +35,7 @@ float theta = 0.0;
 /* --------------------------GLOBALS ---------------------------------*/
 vec4 lightPos(0.0, -0.5, -0.7, 1.0);
 vec3 lightColor = 14.f * vec3(1, 1, 1);
+vec3 indirectLight = 0.5f*vec3(1,1,1);
 /* ----------------------------------------------------------------------------*/
 //  FUNCTIONS                                                                   */
 
@@ -73,7 +74,7 @@ void Draw(screen *screen){
 
   float focalLength = (float)SCREEN_WIDTH;
 
-  vec3 colour(1.0, 0.0, 0.0);
+
   for (int x = 0; x < SCREEN_WIDTH; x++){
     for (int y = 0; y < SCREEN_HEIGHT; y++){
       vec4 d(x - SCREEN_WIDTH / 2, y - SCREEN_WIDTH / 2, focalLength, 1);
@@ -102,19 +103,19 @@ vec3 DirectLight(const Intersection &i){
 
   vec4 currentPosition = i.position;  // current intersection position
 
-  vec3 powerPerArea = (1.0f / sphereSurfaceArea) * vec3(lightColor);
+  vec3 power =  vec3(lightColor);
 
   vec4 normalA(normal.x, normal.y,normal.z, 1);
 
   if(closestIntersection(currentPosition, lightPos-currentPosition, triangles, intermediate)){
     if (intermediate.distance < glm::distance(currentPosition, lightPos)){
-      powerPerArea = vec3(0, 0, 0);
-      
+      power = vec3(0, 0, 0);
+
     }
   }
-  vec3 surfacePower = triangles[i.triangleIndex].color * powerPerArea * glm::max(0.0f, glm::dot(normalisedDir, normal));
+  vec3 surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal))/( sphereSurfaceArea) );
 
-  return surfacePower;
+  return surfacePower +triangles[i.triangleIndex].color*indirectLight ;
 }
 
 // / Place updates of parameters here /
