@@ -110,12 +110,11 @@ vec3 DirectLight(const Intersection &i){
   if(closestIntersection(currentPosition, lightPos-currentPosition, triangles, intermediate)){
     if (intermediate.distance < glm::distance(currentPosition, lightPos)){
       power = vec3(0, 0, 0);
-
     }
   }
-  vec3 surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal))/( sphereSurfaceArea) );
+  vec3 surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal))/( sphereSurfaceArea));
 
-  return surfacePower +triangles[i.triangleIndex].color*indirectLight ;
+  return surfacePower + triangles[i.triangleIndex].color*indirectLight;
 }
 
 // / Place updates of parameters here /
@@ -127,10 +126,10 @@ bool Update(){
   t = t2;
 
   //---- Translation vectrors-----
-  vec4 moveForward(0, 0, 1, 1);
-  vec4 moveBackward(0, 0, -1, 1);
-  vec4 moveLeft(-1, 0, 0, 1);
-  vec4 moveRight(1, 0, -1, 1);
+  vec4 moveForward(0, 0, 1, 0);
+  vec4 moveBackward(0, 0, -1, 0);
+  vec4 moveLeft(-1, 0, 0, 0);
+  vec4 moveRight(1, 0, -1, 0);
 
   SDL_Event e;
   while (SDL_PollEvent(&e)){
