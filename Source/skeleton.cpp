@@ -20,7 +20,7 @@ SDL_Event event;
 #define SCREEN_HEIGHT 256
 #define FULLSCREEN_MODE false
 
-/* --------------------------GLOBALS ---------------------------------*/
+/* ------------------------------------------------------------GLOBALS--------------------------------------------------------------- */
 struct Intersection{
   vec4 position;
   float distance;
@@ -32,13 +32,24 @@ vec4 cameraPos(0.0, 0.0, -3, 1.0);
 
 float theta = 0.0;
 
-/* --------------------------GLOBALS ---------------------------------*/
-vec4 lightPos(0.0, -0.5, -0.7, 1.0);
-vec3 lightColor = 14.f * vec3(1, 1, 1);
-vec3 indirectLight = 0.5f*vec3(1,1,1);
-/* ----------------------------------------------------------------------------*/
-//  FUNCTIONS                                                                   */
+vec4 lightPos1(0.0, -0.5, -0.7, 1.0);
+vec4 lightPos2(0.0, -0.5, -0.6, 1.0);
+vec4 lightPos3(0.0, -0.5, -0.8, 1.0);
 
+vec4 lightPos4(-0.1, -0.5, -0.7, 1.0);
+vec4 lightPos5(-0.1, -0.5, -0.6, 1.0);
+vec4 lightPos6(-0.1, -0.5, -0.8, 1.0);
+
+vec4 lightPos7(0.1, -0.5, -0.7, 1.0);
+vec4 lightPos8(0.1, -0.5, -0.6, 1.0);
+vec4 lightPos9(0.1, -0.5, -0.8, 1.0);
+
+vec3 lightColor = 14.f * vec3(1, 1, 1);
+vec3 indirectLight = 0.5f * vec3(1, 1, 1);
+/* ------------------------------------------------------------------------------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------FUNCTIONS--------------------------------------------------------------- */
 bool Update();
 void Draw(screen *screen);
 bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection);
@@ -89,32 +100,90 @@ void Draw(screen *screen){
 
 vec3 DirectLight(const Intersection &i){
 
-  Intersection intermediate;
-
-  // vec3 R(i.position.x - lightPos.x, i.position.y - lightPos.y, i.position.z - lightPos.z);
-  vec3 direction = vec3(lightPos - i.position);
-  vec3 normalisedDir = glm::normalize(direction);
-  vec3 normal = vec3(triangles[i.triangleIndex].normal);
-
-  // float radius = R.x * R.x + R.y * R.y + R.z * R.z;
-  float radius = glm::distance(i.position, lightPos);
-
-  float sphereSurfaceArea = 4.0f * M_PI * radius*radius;
-
-  vec4 currentPosition = i.position;  // current intersection position
-
-  vec3 power =  vec3(lightColor);
-
-  vec4 normalA(normal.x, normal.y,normal.z, 1);
-
-  if(closestIntersection(currentPosition, lightPos-currentPosition, triangles, intermediate)){
-    if (intermediate.distance < glm::distance(currentPosition, lightPos)){
-      power = vec3(0, 0, 0);
+  vec4 light;
+  vec3 surfacePower(3);
+  float count = 0.0f;
+  for (int j = 0; j < 9; j++){
+    switch (j){
+      case 0:{
+        light = (lightPos1);
+        break; 
+      }
+      case 1:{
+        light = (lightPos2);
+        break;
+      }
+      case 2:{
+        light = (lightPos3);
+        break;
+      }
+      case 3:{
+        light = (lightPos4);
+        break;
+      }
+      case 4:{
+        light = (lightPos5);
+        break;
+      }
+      case 5:{
+        light = (lightPos6);
+        break;
+      }
+      case 6:{
+        light = (lightPos7);
+        break;
+      }
+      case 7:{
+        light = (lightPos8);
+        break;
+      }
+      case 8:{
+        light = (lightPos9);
+        break;
+      }
+      default:{
+        cout << "default case" << endl;
+      }
     }
-  }
-  vec3 surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal))/( sphereSurfaceArea));
 
-  return surfacePower + triangles[i.triangleIndex].color*indirectLight;
+    Intersection intermediate;
+
+    vec3 direction = vec3(light - i.position);
+    vec3 normalisedDir = glm::normalize(direction);
+    vec3 normal = vec3(triangles[i.triangleIndex].normal);
+
+    float radius = glm::distance(i.position, light);
+
+    float sphereSurfaceArea = 4.0f * M_PI * radius*radius;
+
+    vec4 currentPosition = i.position;  // current intersection position
+
+    vec3 power =  vec3(lightColor);
+
+    vec4 normalA(normal.x, normal.y,normal.z, 1);
+
+    if(closestIntersection(currentPosition, light-currentPosition, triangles, intermediate)){
+      if (intermediate.distance < glm::distance(currentPosition, light)){
+        power = vec3(0, 0, 0);
+      }
+      else{
+        count++;
+      }
+    }
+    else{
+        count++;
+    }
+    
+    surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal)) / (sphereSurfaceArea));
+    
+  }
+
+  surfacePower.x *= count/9;
+  surfacePower.y *= count/9;
+  surfacePower.z *= count/9;
+
+  vec3 result = surfacePower + triangles[i.triangleIndex].color * indirectLight;
+  return result;
 }
 
 // / Place updates of parameters here /
@@ -142,48 +211,71 @@ bool Update(){
       case SDLK_UP:{
         /* Move camera forward */
         cameraPos = cameraPos + moveForward;
-        // return true;
         break;
       }
       case SDLK_DOWN:{
         cameraPos = cameraPos + moveBackward;
-        // return true;
         break;
       }
       case SDLK_LEFT:{
         theta -= 0.05;
-        // return true;
         break;
       }
       case SDLK_RIGHT:{
         theta += 0.05;
-
-        // return true;
         break;
       }
       case SDLK_ESCAPE:{
-        /* Move camera quit */
-        // return false;
         break;
       }
       case SDLK_w:{
-        lightPos += moveForward;
+        lightPos1 += moveForward;
+        lightPos2 += moveForward;
+        lightPos3 += moveForward;
+        lightPos4 += moveForward;
+        lightPos5 += moveForward;
+        lightPos6 += moveForward;
+        lightPos7 += moveForward;
+        lightPos8 += moveForward;
+        lightPos9 += moveForward;
         break;
       }
       case SDLK_s:{
-        lightPos += moveBackward;
+        lightPos1 += moveBackward;
+        lightPos2 += moveBackward;
+        lightPos3 += moveBackward;
+        lightPos4 += moveBackward;
+        lightPos5 += moveBackward;
+        lightPos6 += moveBackward;
+        lightPos7 += moveBackward;
+        lightPos8 += moveBackward;
+        lightPos9 += moveBackward;
         break;
       }
       case SDLK_a:{
-        lightPos += moveLeft;
+        lightPos1 += moveLeft;
+        lightPos2 += moveLeft;
+        lightPos3 += moveLeft;
+        lightPos4 += moveLeft;
+        lightPos5 += moveLeft;
+        lightPos6 += moveLeft;
+        lightPos7 += moveLeft;
+        lightPos8 += moveLeft;
+        lightPos9 += moveLeft;
         break;
       }
       case SDLK_d:{
-        lightPos += moveRight;
+        lightPos1 += moveRight;
+        lightPos2 += moveRight;
+        lightPos3 += moveRight;
+        lightPos4 += moveRight;
+        lightPos5 += moveRight;
+        lightPos6 += moveRight;
+        lightPos7 += moveRight;
+        lightPos8 += moveRight;
+        lightPos9 += moveRight;
         break;
       }
-        // case default:
-        //   break;
       }
     }
   }
