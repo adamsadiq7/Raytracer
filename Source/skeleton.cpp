@@ -175,12 +175,17 @@ vec3 DirectLight(const Intersection &i){
     }
     
     surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal)) / (sphereSurfaceArea));
+    // cout << surfacePower.x << "," << surfacePower.y << "," << surfacePower.z << endl;
     
   }
 
   surfacePower.x *= count/9;
   surfacePower.y *= count/9;
   surfacePower.z *= count/9;
+
+  if (count < 9 && count > 0){
+    // cout << count << ": " << surfacePower.x  << "," << surfacePower.y  << "," << surfacePower.z << endl;
+  }
 
   vec3 result = surfacePower + triangles[i.triangleIndex].color * indirectLight;
   return result;
