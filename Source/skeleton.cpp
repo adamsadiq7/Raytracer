@@ -69,7 +69,7 @@ bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Inte
 vec3 DirectLight(const Intersection &i);
 vec3 PhotonLight(const Intersection &i, vec4 originalPos);
 void EmitPhotons(int number, screen *screen);
-void PhotonMap();
+void PhotonMap(screen *screen);
 vec3 DrawPhotons(Intersection intersection);
 float RandomNumber(int max);
 vec4 ConvertTo2D(vec4 v);
@@ -80,10 +80,10 @@ int main(int argc, char *argv[]){
 
   LoadTestModel(triangles);
 
-  EmitPhotons(100000, screen);
+  EmitPhotons(1000, screen);
   while (Update())
   {
-    PhotonMap();
+    PhotonMap(screen);
     Draw(screen);
     SDL_Renderframe(screen);
   }
@@ -94,8 +94,7 @@ int main(int argc, char *argv[]){
   return 0;
 }
 
-vec4 ConvertTo2D(vec4 v)
-{
+vec4 ConvertTo2D(vec4 v){
   //Projection formula to calculate the projected points from a 4d point
   vec4 p;
   p.x = FOCAL_LENGTH * v.x / v.z + SCREEN_WIDTH / 2;
@@ -110,9 +109,9 @@ void Draw(screen *screen)
   memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
 
   Intersection intersection;
-  Intersection intersection2;
-  Intersection intersection3;
-  Intersection intersection4;
+  // Intersection intersection2;
+  // Intersection intersection3;
+  // Intersection intersection4;
 
   float focalLength = (float)SCREEN_WIDTH;
 
@@ -121,23 +120,41 @@ void Draw(screen *screen)
     for (int y = 0; y < SCREEN_HEIGHT; y++)
     {
       vec4 d(x - SCREEN_WIDTH / 2, y - SCREEN_WIDTH / 2 - 0.25, focalLength, 1);
-      vec4 d2(x - SCREEN_WIDTH / 2 + 0.25, y - SCREEN_WIDTH / 2, focalLength, 1);
-      vec4 d3(x - SCREEN_WIDTH / 2 - 0.25, y - SCREEN_WIDTH / 2, focalLength, 1);
-      vec4 d4(x - SCREEN_WIDTH / 2, y - SCREEN_WIDTH / 2 + +0.25, focalLength, 1);
+      // vec4 d2(x - SCREEN_WIDTH / 2 + 0.25, y - SCREEN_WIDTH / 2, focalLength, 1);
+      // vec4 d3(x - SCREEN_WIDTH / 2 - 0.25, y - SCREEN_WIDTH / 2, focalLength, 1);
+      // vec4 d4(x - SCREEN_WIDTH / 2, y - SCREEN_WIDTH / 2 + +0.25, focalLength, 1);
 
       d = glm::normalize(d);
-      d2 = glm::normalize(d2);
-      d3 = glm::normalize(d3);
-      d4 = glm::normalize(d4);
+      // d2 = glm::normalize(d2);
+      // d3 = glm::normalize(d3);
+      // d4 = glm::normalize(d4);
 
-      if (closestIntersection(cameraPos, d, triangles, intersection) && closestIntersection(cameraPos, d2, triangles, intersection2) && closestIntersection(cameraPos, d3, triangles, intersection3) && closestIntersection(cameraPos, d4, triangles, intersection4))
+      if (closestIntersection(cameraPos, d, triangles, intersection))
       {
 
         //this is an attempt to average out the 4 rays that are casted per pixel.
-        vec3 finalColour = DirectLight(intersection) + DirectLight(intersection2) + DirectLight(intersection3) + DirectLight(intersection4);
-        finalColour = finalColour * 0.25f;
+        // vec3 finalColour = DirectLight(intersection);
+        // PutPixelSDL(screen, x, y, finalColour);
+        // finalColour = finalColour * 0.25f;
 
-        PutPixelSDL(screen, x, y, finalColour);
+
+        if(x<3){
+          vec3 colour;
+          for (int i = 0; i < photons.size(); i++)
+          {
+            vec4 distance = (photons[i].position - intersection.position);
+            if (glm::length(distance) < 1)
+            {
+              cout << "yes" << endl;
+              colour += photons[i].lightPower;
+            }
+            else
+            {
+              cout << "no: distance = " << glm::length(distance) << endl;
+            }
+            PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1, 0, 0));
+          }
+        }
       }
     }
   }
@@ -148,9 +165,14 @@ vec3 DrawPhotons(Intersection intersection){
   for (int i =0;i<photons.size();i++){
     vec4 distance = (photons[i].position - intersection.position);
     if (glm::length(distance) < 0.5){
+      // cout << "yes" << endl;
       colour += photons[i].lightPower;
     }
+    else{
+      // cout << "no: distance = " << glm::length(distance) << endl;
+    }
   }
+  // cout << "photon lightpower: " << colour.x << "," << colour.y << "," << colour.z << endl;
   return colour;
 }
 
@@ -217,16 +239,16 @@ void EmitPhotons(int number, screen *screen)
     // cout << "active: " << photons[photonCount].active << endl <<endl;
 
     photonCount++;
-    cout << "photons.size(): " << photons.size() << endl;
   }
+  // cout << "1. photons.size(): " << photons.size() << endl;
 }
 
-void PhotonMap(){
+void PhotonMap(screen *screen){
   float x, y, z;
   Intersection intermediate;
-  cout << "photons.size(): " << photons.size() << endl;
-  for (int i = 0; i < photons.size(); i++){
-    // cout << photons.size();
+  // cout << "3. photons.size(): " << photons.size() << endl;
+  for (int i = 0; i < photons.size(); i++){ 
+    // cout << "4. photons.size(): " << photons.size() << endl;
     if (photons[i].active == true){
       do{
         x = RandomNumber(1);
@@ -237,13 +259,14 @@ void PhotonMap(){
       // no longer regarding this pixel
       photons[i].active = false;
       deadCount++;
+      // cout << deadCount << endl;
 
       vec4 d = vec4(x, y, z, 1); // direction for photon
 
       vec4 direction = glm::normalize(d);
 
       if (closestIntersection(lightPositions[0], direction, triangles, intermediate)){
-        photons.resize(i + 1);
+        photons.resize(photons.size() + 1);
         float russian = RandomNumber(1);
         if (russian <= diffuse)
         { // diffuse reflections
@@ -251,8 +274,12 @@ void PhotonMap(){
           photons[i].lightPower = PhotonLight(intermediate, lightPositions[0]);
           photons[i].reflection = 1;
           photons[i].active = true;
-          // PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1, 0, 0));
-        }
+          PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1, 0, 0));
+          for (int i =0;i<SCREEN_WIDTH;++i){
+            for (int j =0;j<SCREEN_HEIGHT;++j){
+              PutPixelSDL(screen, x, y, vec3(1, 0, 0));
+          }
+        }}
         else if (russian > diffuse && russian < diffuse + specular)
         { //specular reflections
           // equation: dr = di - 2 * normal * (normal*di)
@@ -260,7 +287,7 @@ void PhotonMap(){
           photons[i].lightPower = PhotonLight(intermediate, lightPositions[0]);
           photons[i].reflection = 2;
           photons[i].active = true;
-          // PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1, 0, 0));
+          PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1, 0, 0));
         }
         else
         { // absorption
