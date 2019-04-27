@@ -69,24 +69,21 @@ vec3 indirectLight = 0.5f * vec3(1, 1, 1);
 bool Update();
 void Draw(screen *screen);
 bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection);
-vec3 DirectLight(const Intersection &i);
 void EmitPhotons(float number, screen *screen);
 void PhotonMap(screen *screen);
 vec3 DrawPhotons(Intersection intersection);
-float RandomNumber(int max);
+float RandomNumber(float max);
 vec4 ConvertTo2D(vec4 v);
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]){
 
   screen *screen = InitializeSDL(SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE);
 
   LoadTestModel(triangles);
 
   EmitPhotons(1000.0f, screen);
-  while (Update())
-  {
-    // PhotonMap(screen);
+  while (Update()){
+    PhotonMap(screen);
     Draw(screen);
     SDL_Renderframe(screen);
   }
@@ -106,51 +103,40 @@ vec4 ConvertTo2D(vec4 v){
 }
 
 // / Place your drawing here /
-void Draw(screen *screen)
-{
+void Draw(screen *screen){
   /* Clear buffer */
   memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
 
   Intersection intersection;
-  // Intersection intersection2;
-  // Intersection intersection3;
-  // Intersection intersection4;
 
   float focalLength = (float)SCREEN_WIDTH;
 
   for (int x = 0; x < SCREEN_WIDTH; x++){
     for (int y = 0; y < SCREEN_HEIGHT; y++){
       vec4 d(x - SCREEN_WIDTH / 2, y - SCREEN_WIDTH / 2 - 0.25, focalLength, 1);
-      // vec4 d2(x - SCREEN_WIDTH / 2 + 0.25, y - SCREEN_WIDTH / 2, focalLength, 1);
-      // vec4 d3(x - SCREEN_WIDTH / 2 - 0.25, y - SCREEN_WIDTH / 2, focalLength, 1);
-      // vec4 d4(x - SCREEN_WIDTH / 2, y - SCREEN_WIDTH / 2 + +0.25, focalLength, 1);
 
       d = glm::normalize(d);
-      // d2 = glm::normalize(d2);
-      // d3 = glm::normalize(d3);
-      // d4 = glm::normalize(d4);
 
       if (closestIntersection(cameraPos, d, triangles, intersection)){
 
-        //this is an attempt to average out the 4 rays that are casted per pixel.
-        // vec3 finalColour = DirectLight(intersection);
-        // PutPixelSDL(screen, x, y, finalColour);
-        // finalColour = finalColour * 0.25f;
-
           vec3 colour;
           for (int i = 0; i < photons.size(); i++){
-            vec4 distance = (photons[i].position - intersection.position);
-            if (glm::length(distance) < 1){
-              // cout << "yes: distance = " << glm::length(distance) << endl;
-              // cout << photons[i].lightPower.x << "," << photons[i].lightPower.y << "," << photons[i].lightPower.z << endl;
-              colour += photons[i].lightPower;
-            }
-            else{
-              // cout << "no: distance = " << glm::length(distance) << endl;
-            }
-            // PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1,0,0));
+            PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1,1,1));
+            // cout << photons[i].lightPower.x << "," << photons[i].lightPower.y << "," << photons[i].lightPower.z << endl;
           }
-          PutPixelSDL(screen, x, y, colour);
+
+          //   vec4 distance = (photons[i].position - intersection.position);
+          //   if (glm::length(distance) < 1){
+          //     // cout << "yes: distance = " << glm::length(distance) << endl;
+          //     // cout << photons[i].lightPower.x << "," << photons[i].lightPower.y << "," << photons[i].lightPower.z << endl;
+          //     colour += photons[i].lightPower;
+          //   }
+          //   else{
+          //     // cout << "no: distance = " << glm::length(distance) << endl;
+          //   }
+          //   PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, colour);
+          // }
+          // PutPixelSDL(screen, x, y, colour);
       }
     }
   }
@@ -161,22 +147,11 @@ vec3 DrawPhotons(Intersection intersection){
   for (int i = 0; i < photons.size(); i++){
     vec4 distance = (photons[i].position - intersection.position);
     if (glm::length(distance) < 0.5){
-      // cout << "yes" << endl;
       colour += photons[i].lightPower;
     }
-    else{
-      // cout << "no: distance = " << glm::length(distance) << endl;
-    }
+    else{ }
   }
-  // cout << "photon lightpower: " << colour.x << "," << colour.y << "," << colour.z << endl;
   return colour;
-}
-
-float RandomNumber(int max){
-  int deno = max * 100;
-  float x = rand() % deno;
-  x *= 1.0f / deno;
-  return x;
 }
 
 void EmitPhotons(float number, screen *screen){
@@ -186,9 +161,9 @@ void EmitPhotons(float number, screen *screen){
   Intersection intermediate;
   while (photonCount != number){
     do{
-      x = RandomNumber(1);
-      y = RandomNumber(1);
-      z = RandomNumber(1);
+      x = RandomNumber(1.0f);
+      y = RandomNumber(1.0f);
+      z = RandomNumber(1.0f);
     } while (x * x + y * y + z * z > 1);
     vec4 d = vec4(x, y, z, 1);
 
@@ -207,36 +182,26 @@ void EmitPhotons(float number, screen *screen){
 
       // diffuse reflections
       if (russian <= diffuse){
-        
         photons[photonCount].position = intermediate.position;
-        photons[photonCount].lightPower *= triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
-        photons[photonCount].reflection = 1;
+        // photons[photonCount].lightPower *= triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
+        // photons[photonCount].reflection = 1;
         photons[photonCount].active = true;
       }
 
       //specular reflections
       else if (russian > diffuse && russian < diffuse + specular){
         photons[photonCount].position = intermediate.position;
-        photons[photonCount].reflection = 2;
+        // photons[photonCount].reflection = 2;
         photons[photonCount].active = true;
       }
 
       // absorption
-      else{ // cout << "absorption: " << photons[photonCount].position.x << "," << photons[photonCount].position.y << "," << photons[photonCount].position.z <<endl;
+      else{
+        photons[photonCount].position = intermediate.position;
       }
-      // cout << "after: " << photons[photonCount].position.x << "," << photons[photonCount].position.y << "," << photons[photonCount].position.z <<endl;
-
-      // cout<<endl;
     }
-
-    // cout << "photon " << photonCount << endl;
-    // cout << "position: " << photons[photonCount].position.x << "," << photons[photonCount].position.y << "," << photons[photonCount].position.z << endl;
-    // cout << "lightPower: " << photons[photonCount].lightPower.x << "," << photons[photonCount].lightPower.y << "," << photons[photonCount].lightPower.z << endl;
-    // cout << "active: " << photons[photonCount].active << endl <<endl;
-
     photonCount++;
   }
-  // cout << "1. photons.size(): " << photons.size() << endl;
 }
 
 void PhotonMap(screen *screen){
@@ -246,17 +211,19 @@ void PhotonMap(screen *screen){
   for (int i = 0; i < photons.size(); i++){
 
     if (photons[i].active == true){
-      if (photons[i].reflection == 2){
-        d = photons[i].incidence - (photons[i].normal * 2.0f) * (photons[i].normal*photons[i].incidence); // equation: dr = di - 2 * normal * (normal*di)
-      }
-      else{
+      // if (photons[i].reflection == 2){
+        // equation: dr = di - 2 * normal * (normal*di)
+        // d = photons[i].incidence - (photons[i].normal * 2.0f) * (photons[i].normal*photons[i].incidence); 
+      // }
+      // else{
         do{
           x = RandomNumber(1);
           y = RandomNumber(1);
           z = RandomNumber(1);
         } while (x * x + y * y + z * z > 1);
+        cout << x << "," << y << "," << z << endl;
         d = vec4(x, y, z, 1); // direction for photon
-      }
+      // }
 
       // no longer regarding this pixel
       photons[i].active = false;
@@ -265,89 +232,50 @@ void PhotonMap(screen *screen){
       vec4 direction = glm::normalize(d);
 
       if (closestIntersection(lightPositions[0], direction, triangles, intermediate)){
+
         photons.resize(photons.size() + 1);
 
-        photons[i].incidence = direction;
-        photons[i].normal = triangles[intermediate.triangleIndex].normal;
+        // photons[i].incidence = direction;
+        // photons[i].normal = triangles[intermediate.triangleIndex].normal;
 
         float russian = RandomNumber(1);
+
+        photons[i].position = intermediate.position;
 
         // diffuse reflections
         if (russian <= diffuse){
           photons[i].position = intermediate.position;
-          photons[i].lightPower *= triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
-          photons[i].reflection = 1;
+          // photons[i].lightPower *= triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
+          // photons[i].reflection = 1;
           photons[i].active = true;
         }
 
         //specular reflections
         else if (russian > diffuse && russian < diffuse + specular){
           photons[i].position = intermediate.position;
-          photons[i].reflection = 2;
+          // photons[i].reflection = 2;
           photons[i].active = true;
         }
         
         // absorption
-        else{
-          // PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1, 0, 0));
-          // cout << "absorption: " << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z <<endl;
+        else{ 
+          photons[i].position = intermediate.position;
         }
-        // cout << "after: " << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z <<endl;
-
-        // cout<<endl;
       }
-      // cout << "position: " << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z << endl;
-      // cout << "lightPower: " << photons[i].lightPower.x << "," << photons[i].lightPower.y << "," << photons[i].lightPower.z << endl;
-      // cout << "active: " << photons[i].active << endl << endl;
+      else{
+        // cout << "rejection" << endl;/
+      }
     }
 
     else { }
   }
 }
 
-vec3 DirectLight(const Intersection &i){
-
-  vec3 surfacePower(3);
-  float count = 0.0f;
-  vec3 result;
-  vec3 average;
-
-  for (int j = 0; j < lightPositions.size(); j++){
-
-    Intersection intermediate;
-    vec3 direction = vec3(lightPositions[j] - i.position);
-    vec3 normalisedDir = glm::normalize(direction);
-    vec3 normal = vec3(triangles[i.triangleIndex].normal);
-
-    float radius = glm::distance(i.position, lightPositions[j]);
-
-    float sphereSurfaceArea = 4.0f * M_PI * radius * radius;
-
-    vec4 currentPosition = i.position; // current intersection position
-
-    vec3 power = vec3(lightColor);
-
-    if (closestIntersection(currentPosition, lightPositions[j] - currentPosition, triangles, intermediate)){
-      if (intermediate.distance < glm::distance(currentPosition, lightPositions[j])){
-        power = vec3(0, 0, 0);
-      }
-      else{
-        count++;
-      }
-    }
-    else{
-      count++;
-    }
-
-    surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal)) / (sphereSurfaceArea));
-
-    surfacePower.x *= count / lightPositions.size();
-    surfacePower.y *= count / lightPositions.size();
-    surfacePower.z *= count / lightPositions.size();
-
-    surfacePower += triangles[i.triangleIndex].color * indirectLight;
-  }
-  return surfacePower;
+float RandomNumber(float max){
+  int deno = max * 200;
+  float x = rand() % deno;
+  x *= max * 2.0f / deno;
+  return x-1.0f;
 }
 
 bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection){
