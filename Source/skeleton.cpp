@@ -40,11 +40,8 @@ struct Intersection
 
 struct Photon{
   vec3 position;
-  vec3 lightPower; // power
-  int reflection;
-  bool active;
-  vec3 incidence;
-  vec3 normal;
+  vec3 lightPower;
+  vec3 direction;
   // short flag;      // flag used in kdtree                  // not sure about this one
 };
 
@@ -62,8 +59,8 @@ struct Node {
 
 vector<Triangle> triangles;
 struct Node *root = NULL;
-vector<Photon> photons;
-float photonsToBeEmitted = 2025.0f; //this is the maximum
+vector<Photon> globalPhotonMap;
+float photonsToBeEmitted = 50000.0f; //this is the maximum
 int hit = 0;
 int absorbed = 0;
 
@@ -80,7 +77,7 @@ float theta = 0.0;
 float diffuse = 0.7f;
 float specular = 0.1f;
 
-vec3 lightColor = 14.0f * vec3(1, 1, 1);
+vec3 lightColor = 10.0f * vec3(1, 1, 1);
 vec3 indirectLight = 0.5f * vec3(1, 1, 1);
 
 /* ------------------------------------------------------------GLOBALS--------------------------------------------------------------- */
@@ -89,12 +86,13 @@ vec3 indirectLight = 0.5f * vec3(1, 1, 1);
 bool Update();
 void Draw(screen *screen);
 bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection);
-void EmitPhotons(float number, screen *screen);
-void PhotonMap(screen *screen);
+void EmitPhotons(float number);
+void PhotonMap(Photon photon);
 vec3 DrawPhotons(Intersection intersection);
 float RandomNumber(float max);
 vec4 ConvertTo2D(vec4 v);
-vec3 DirectLight(const Intersection &i);
+vec3 FindSpecularDirection(vec3 normal, vec3 incidence);
+vec4 FindDiffuseDirection();
 struct Node* newNode(int arr[]);
 
 int main(int argc, char *argv[]){
@@ -103,9 +101,8 @@ int main(int argc, char *argv[]){
 
   LoadTestModel(triangles);
 
-  EmitPhotons(photonsToBeEmitted, screen); //max
   while (Update()){
-    PhotonMap(screen);
+    EmitPhotons(photonsToBeEmitted); //max
     Draw(screen);
     SDL_Renderframe(screen);
   }
@@ -143,22 +140,13 @@ void Draw(screen *screen){
         if (closestIntersection(cameraPos, d, triangles, intersection)){
           vec3 colour;
           vec3 distance;
-          for (int i = 0; i < photons.size(); i++){
+          for (int i = 0; i < globalPhotonMap.size(); i++){
 
-            distance = (photons[i].position - vec3(intersection.position));
+            distance = (globalPhotonMap[i].position - vec3(intersection.position));
             if (glm::length(distance) < 0.6){
-              count++;
-
-              // cout << "photons.position: " << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z << endl;
-              // cout << "yes: distance = " << glm::length(distance) << endl;
-              // cout << photons[i].lightPower.x << "," << photons[i].lightPower.y << "," << photons[i].lightPower.z << endl;
-              colour +=  photons[i].lightPower/glm::length(distance);
+              colour +=  globalPhotonMap[i].lightPower/*/glm::length(distance)*/;
             }
-            else{
-              // cout << "no: distance = " << glm::length(distance) << endl;
-            }
-            // PutPixelSDL(screen, ConvertTo2D(photons[i].position).x, ConvertTo2D(photons[i].position).y, vec3(1,1,1));
-            // cout << "photons.position: " << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z << endl;
+            // PutPixelSDL(screen, ConvertTo2D(globalPhotonMap[i].position).x, ConvertTo2D(globalPhotonMap[i].position).y, vec3(1,1,1));
           }
           // cout << count << " nearest neighbours found" << endl;
           PutPixelSDL(screen, x, y, colour);
@@ -167,210 +155,133 @@ void Draw(screen *screen){
   }
 }
 
-vec3 DirectLight(const Intersection &i){
 
-  vec3 surfacePower(3);
-  float count = 0.0f;
-  vec3 result;
-  vec3 average;
+void EmitPhotons(float photonCount){
 
-  for (int j = 0; j < lightPositions.size(); j++){
-  
-      Intersection intermediate;
-      vec3 direction = vec3(lightPositions[j] - i.position);
-      vec3 normalisedDir = glm::normalize(direction);
-      vec3 normal = vec3(triangles[i.triangleIndex].normal);
+  Intersection intermediate;
+  Photon photon;
+  vec4 direction;
+  bool directionFound = false;
 
-      float radius = glm::distance(i.position, lightPositions[j]);
-
-      float sphereSurfaceArea = 4.0f * M_PI * radius*radius;
-
-      vec4 currentPosition = i.position;  // current intersection position
-
-      vec3 power =  vec3(lightColor);
-
-      if(closestIntersection(currentPosition, lightPositions[j]-currentPosition, triangles, intermediate)){
-        if (intermediate.distance < glm::distance(currentPosition, lightPositions[j])){
-          power = vec3(0, 0, 0);
-        }
-        else{
-          count++;
-        }
+  for (int i = 0; i < photonCount; i++){
+    do{
+      direction = FindDiffuseDirection();
+      if(closestIntersection(lightPositions[0],direction,triangles,intermediate)){
+        directionFound = true;
       }
-      else{
-          count++;
-      }
-      
-      surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal)) / (sphereSurfaceArea));
+    } while(directionFound == false);
 
-      surfacePower.x *= count/lightPositions.size();
-      surfacePower.y *= count/lightPositions.size();
-      surfacePower.z *= count/lightPositions.size();
+    directionFound = false;
 
-      surfacePower += triangles[i.triangleIndex].color * indirectLight; 
-      
-    }  
-  return surfacePower;
+    photon.position = vec3(lightPositions[0]);
+    photon.direction = vec3(direction);
+    photon.lightPower = lightColor / photonCount;
+    PhotonMap(photon);
+  }
+
 }
 
 
-void EmitPhotons(float number, screen *screen){
-  float i = 0.0f;
-  float photonCount = 0.0f;
-  photons.resize(1);
+vec4 FindDiffuseDirection(){
   float x, y, z;
+  do{
+    x = RandomNumber(1.0f);
+    y = RandomNumber(1.0f);
+    z = RandomNumber(1.0f);
+  } while (x * x + y * y + z * z > 1);
+
+  vec4 d = vec4(x, y, z, 1);
+
+  vec4 direction = glm::normalize(d);
+
+  return direction;
+}
+
+vec3 FindSpecularDirection(vec3 normal, vec3 incidence){
+  vec3 direction = incidence - (normal * 2.0f) * (normal*incidence);
+  return direction;
+}
+
+void PhotonMap(Photon photon){
+  bool firstRun = true;
   Intersection intermediate;
-  while (i != number){
-    do{
-      x = RandomNumber(1.0f);
-      y = RandomNumber(1.0f);
-      z = RandomNumber(1.0f);
-    } while (x * x + y * y + z * z > 1);
+  vec4 d;
+  bool absorbed = false;
 
-    vec4 d = vec4(x, y, z, 1);
+  while (!absorbed){
+    // cout << absorbed << endl;
+    // cout << "position: " << photon.position.x << "," << photon.position.y << "," << photon.position.z << endl;
 
-    vec4 direction = glm::normalize(d);
-
-    if (closestIntersection(lightPositions[0], direction, triangles, intermediate)){
-
-      float russian = RandomNumber(1);
+    if (closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
+      float nigerian = fabs(RandomNumber(1)); // russian roulette
 
       // diffuse reflections
-      if (russian <= diffuse){
-        photons.resize(photonCount + 1);
-
-        photons[photonCount].incidence = vec3(direction);
-        photons[photonCount].normal = vec3(triangles[intermediate.triangleIndex].normal);
-
-        // setting photon light to be equal to be fraction of lightpower
-        photons[photonCount].lightPower = vec3(lightColor[0]);
-        photons[photonCount].lightPower *= 1 / number;
-
-        photons[photonCount].position = vec3(intermediate.position);
-        // cout << "incoming: " << photons[photonCount].lightPower.x << "," << photons[photonCount].lightPower.y << "," << photons[photonCount].lightPower.z << endl;
-        // cout << "intermediate.position: " << intermediate.position.x << "," << intermediate.position.y << "," << intermediate.position.z << endl;
-        photons[photonCount].lightPower *= triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
-        // cout << "outgoing: " << photons[photonCount].lightPower.x << "," << photons[photonCount].lightPower.y << "," << photons[photonCount].lightPower.z << endl << endl;
-        photons[photonCount].reflection = 1;
-        photons[photonCount].active = true;
-        photonCount++;
-      }
-
-      //specular reflections
-      else if (russian > diffuse && russian < diffuse + specular){
-        photons.resize(photonCount + 1);
-
-        photons[photonCount].incidence = vec3(direction);
-        photons[photonCount].normal = vec3(triangles[intermediate.triangleIndex].normal);
-
-        // setting photon light to be equal to be fraction of lightpower
-        photons[photonCount].lightPower = vec3(lightColor[0]);
-        photons[photonCount].lightPower *= 1 / number;
-
-        photons[photonCount].position = vec3(intermediate.position);
-
-        // cout << "intermediate.position: " << intermediate.position.x << "," << intermediate.position.y << "," << intermediate.position.z << endl;
-        // photons[photonCount].lightPower = triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
-        photons[photonCount].reflection = 2;
-        photons[photonCount].active = true;
-        photonCount++;
-      }
-
-      // absorption
-      else{ }
-
-      i++;
-    }
-  }
-}
-
-
-void PhotonMap(screen *screen){
-  float x, y, z;
-  Intersection intermediate;
-  vec3 placeholder;
-  vec4 d;
-  for (int i = 0; i < photons.size(); i++){
-    if (photons[i].active == true){
-        vec4 direction;
-        vec4 start;
-        start.x = photons[i].position.x;
-        start.y = photons[i].position.y;
-        start.z = photons[i].position.z;
-        start.w = 1;
-
-      // cout << "photons[i].position: " << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z << endl;
-      if (photons[i].reflection == 2){
-        // equation: dr = di - 2 * normal * (normal*di)
-        placeholder = photons[i].incidence - (photons[i].normal * 2.0f) * (photons[i].normal*photons[i].incidence);
-        d.x = placeholder.x;
-        d.y = placeholder.y;
-        d.z = placeholder.z;
-        d.w = 1;
-      }
-      else{
+      if (nigerian <= diffuse){
+        photon.position = vec3(intermediate.position);
         do{
-          x = RandomNumber(1);
-          y = RandomNumber(1);
-          z = RandomNumber(1);
+          photon.direction = vec3(FindDiffuseDirection());
+        } while(!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate));
 
-          d = vec4(x, y, z, 1); // direction for photon
-          direction = glm::normalize(d);
+        photon.lightPower *= triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
 
-        } while (x * x + y * y + z * z > 1 && closestIntersection(start, direction, triangles, intermediate));
-        // cout << x << "," << y << "," << z << endl;
-      }
-
-      // no longer regarding this pixel
-      photons[i].active = false;
-
-      float russian = RandomNumber(1);
-
-        // diffuse reflections
-      if (russian <= diffuse){
-        photons.resize(photons.size() + 1);
-
-        photons[photons.size()-1].incidence = vec3(direction);
-        photons[photons.size()-1].normal = vec3(triangles[intermediate.triangleIndex].normal);
-
-        photons[photons.size()-1].position = vec3(intermediate.position);
-          // cout << "intermediate.position: " << intermediate.position.x << "," << intermediate.position.y << "," << intermediate.position.z << endl;
-        photons[photons.size()-1].lightPower *= triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
-        photons[photons.size()-1].reflection = 1;
-        photons[photons.size()-1].active = true;
+        globalPhotonMap.push_back(photon); // add photon to global list;
       }
 
       //specular reflections
-      else if (russian > diffuse && russian < diffuse + specular){
-        photons.resize(photons.size() + 1);
-
-        photons[photons.size()-1].incidence = vec3(direction);
-        photons[photons.size()-1].normal = vec3(triangles[intermediate.triangleIndex].normal);
-
-        photons[photons.size()-1].position = vec3(intermediate.position);
-        // cout << "intermediate.position: " << intermediate.position.x << "," << intermediate.position.y << "," << intermediate.position.z << endl;
-        // photons[i].lightPower = triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
-        photons[photons.size()-1].reflection = 2;
-        photons[photons.size()-1].active = true;
+      else if (nigerian > diffuse && nigerian < diffuse + specular){
+        photon.position = vec3(intermediate.position);
+        photon.direction = FindSpecularDirection(vec3(triangles[intermediate.triangleIndex].normal), photon.direction);
+        if (!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
+          absorbed = true;
+        }
       }
-        
+
       // absorption
-      else{ }
-
-    }
-
-    // problem is found here at least, may not originate from here but
-    // so many photons have a position of (0,0,0) which is affecting the scene, need to solve before the lab 100%
-
-    else{
-      if (photons[i].position.z == 0){
-        cout << "photons[i].position: " << i << endl << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z << endl;
+      else{
+        absorbed = true;
       }
-      else{ }
+    }
+    else{
+      // cout << "direction2: " << photon.direction.x << "," << photon.direction.y << "," << photon.direction.z << endl <<endl;
     }
   }
-
 }
+// for (int i = 0; i < photons.size(); i++){
+//   if (photons[i].active == true){
+//       vec4 direction;
+//       vec4 start;
+//       start.x = photons[i].position.x;
+//       start.y = photons[i].position.y;
+//       start.z = photons[i].position.z;
+//       start.w = 1;
+
+//     // cout << "photons[i].position: " << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z << endl;
+//     if (photons[i].reflection == 2){
+//       // equation: dr = di - 2 * normal * (normal*di)
+//       placeholder = photons[i].incidence - (photons[i].normal * 2.0f) * (photons[i].normal*photons[i].incidence);
+//       d.x = placeholder.x;
+//       d.y = placeholder.y;
+//       d.z = placeholder.z;
+//       d.w = 1;
+//     }
+//     else{
+//       do{
+//         x = RandomNumber(1);
+//         y = RandomNumber(1);
+//         z = RandomNumber(1);
+
+//         d = vec4(x, y, z, 1); // direction for photon
+//         direction = glm::normalize(d);
+
+//       } while (x * x + y * y + z * z > 1 && closestIntersection(start, direction, triangles, intermediate));
+//       // cout << x << "," << y << "," << z << endl;
+//     }
+
+//     // no longer regarding this pixel
+//     photons[i].active = false;
+
+//   }
+// }
 
 float RandomNumber(float max){
   int deno = max * 200;
@@ -429,7 +340,7 @@ bool Update(){
   float dt = float(t2 - t);
   t = t2;
 
-  // cout << "Render time: " << dt << endl;
+  cout << "Render time: " << dt << endl;
 
   //---- Translation vectrors-----
   vec4 moveForward(0, 0, 1, 0);
