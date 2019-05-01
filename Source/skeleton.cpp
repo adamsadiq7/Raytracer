@@ -22,8 +22,8 @@ using glm::vec4;
 
 SDL_Event event;
 
-#define SCREEN_WIDTH 256
-#define SCREEN_HEIGHT 256
+#define SCREEN_WIDTH 512
+#define SCREEN_HEIGHT 512
 #define FULLSCREEN_MODE false
 #define FOCAL_LENGTH SCREEN_HEIGHT
 
@@ -45,12 +45,14 @@ struct Photon{
   // short flag;      // flag used in kdtree                  // not sure about this one
 };
 
-const int k = 2; 
-  
-// A structure to represent node of kd tree 
-struct Node {
-  int point[k]; // To store k dimensional point 
-  Node *left, *right; 
+// struct Node{
+//   Photon *node;
+// };
+
+struct KDTree{
+  Photon *node;
+  Photon *left;
+  Photon *right;
 };
 
 /* ------------------------------------------------------------STRUCTS--------------------------------------------------------------- */
@@ -62,19 +64,21 @@ vec4 cameraPos(0.0, 0.0, -3, 1.0);
 vector<vec4> lightPositions = {
     vec4(0.0, -0.2, -0.9, 1.0)
 };
-vec3 lightColor = 50.0f * vec3(1, 1, 1);
+vec3 lightColor = 40.0f * vec3(1, 1, 1);
 vec3 indirectLight = 0.5f * vec3(1, 1, 1);
 
 float theta = 0.0;
 
 vector<Photon> globalPhotonMap;
-float photonsToBeEmitted = 200000.0f;
+vector<Photon*> globalPhotonPointers;
+KDTree kdTree;
+float photonsToBeEmitted = 2000.0f;
+int currentDimension;
 
 float radius = 0.3f;
 float diffuse = 0.5f;
 float specular = 0.0f;
 
-struct Node *root = NULL;
 /* global variable, so sue me */
 int visited;
 
@@ -92,8 +96,10 @@ vec4 ConvertTo2D(vec4 v);
 vec3 FindSpecularDirection(vec3 normal, vec3 incidence);
 vec4 FindDiffuseDirection();
 vec3 DirectLight(const Intersection &i);
-struct Node* newNode(int arr[]);
-// void test(void);
+KDTree BalanceTree(vector <Photon*> photonPointers);
+void PopulatePointerTree();
+int FindMaxDimension();
+int GetCurrentMaxDimension();
 
 int main(int argc, char *argv[]){
 
@@ -101,7 +107,9 @@ int main(int argc, char *argv[]){
 
   LoadTestModel(triangles);
 
-  EmitPhotons(photonsToBeEmitted); //max
+  EmitPhotons(photonsToBeEmitted);
+  PopulatePointerTree();
+  BalanceTree(globalPhotonPointers);
   while (Update()){
     Draw(screen);
     SDL_Renderframe(screen);
@@ -111,6 +119,104 @@ int main(int argc, char *argv[]){
 
   KillSDL(screen);
   return 0;
+}
+
+
+KDTree BalanceTree(vector <Photon*> photonPointers){
+
+  // cout << "photonPointers size:" << photonPointers.size() << endl;
+
+  int dimension = FindMaxDimension();
+
+  sort(photonPointers.begin(), photonPointers.end(), [](const Photon* lhs, const Photon* rhs) {
+        return lhs->position[GetCurrentMaxDimension()] < rhs->position[GetCurrentMaxDimension()];
+  });
+
+  int median = floor(photonPointers.size()/2);
+
+  KDTree kdTree;
+  vector<Photon*> leftPointers;
+  vector<Photon*> rightPointers;
+
+  for (int i =0;i<photonPointers.size();i++){
+    if (i<median) {leftPointers.push_back(photonPointers[i]);}
+    else if (i> median) {rightPointers.push_back(photonPointers[i]);}
+  }
+
+  if (median != 0){
+    kdTree.node = photonPointers[median];
+  }
+
+  kdTree.node = photonPointers[median];
+
+  if (leftPointers.size() != 0) BalanceTree(leftPointers);
+  if (rightPointers.size() != 0) BalanceTree(rightPointers);
+
+  return kdTree;
+}
+
+
+int GetCurrentMaxDimension(){
+  return currentDimension;
+}
+
+int FindMaxDimension(){
+  float lowestX = std::numeric_limits<float>::max();
+  float largestX = std::numeric_limits<float>::min();
+  float rangeX, rangeY, rangeZ = 0.0f;
+
+  float lowestY = std::numeric_limits<float>::max();
+  float largestY = std::numeric_limits<float>::min();
+
+  float lowestZ = std::numeric_limits<float>::max();
+  float largestZ = std::numeric_limits<float>::min();
+
+
+  for (int i =0;i<globalPhotonMap.size();i++){
+    if (globalPhotonMap[i].position.x < lowestX){
+      lowestX = globalPhotonMap[i].position.x;
+    }
+    else if (globalPhotonMap[i].position.x > largestX){
+      largestX = globalPhotonMap[i].position.x;
+    }
+
+    if (globalPhotonMap[i].position.y < lowestY){
+      lowestY = globalPhotonMap[i].position.y;
+    }
+    else if (globalPhotonMap[i].position.y > largestY){
+      largestY = globalPhotonMap[i].position.y;
+    }
+
+    if (globalPhotonMap[i].position.z < lowestZ){
+      lowestZ = globalPhotonMap[i].position.z;
+    }
+    else if (globalPhotonMap[i].position.x > largestZ){
+      largestZ = globalPhotonMap[i].position.z;
+    }
+  }
+
+  rangeX = largestX - lowestX;
+  rangeY = largestY - lowestY;
+  rangeZ = largestZ - lowestZ;
+
+  if (rangeX >= rangeY && rangeX >= rangeZ){
+    currentDimension = 0;
+  }
+  else if (rangeY >= rangeX && rangeY >= rangeZ){
+    currentDimension = 1;
+  }
+  else{
+    currentDimension = 2;
+  }
+  return currentDimension;
+}
+
+
+
+void PopulatePointerTree(){
+  for (int i =0;i<globalPhotonMap.size();i++){
+    globalPhotonPointers.push_back(&globalPhotonMap[i]);
+  }
 }
 
 vec4 ConvertTo2D(vec3 v){
@@ -162,7 +268,6 @@ vec3 DirectLight(const Intersection &i){
   vec3 surfacePower(3);
   float count = 0.0f;
   vec3 result;
-  vec3 average;
 
   for (int j = 0; j < lightPositions.size(); j++){
   
@@ -175,7 +280,7 @@ vec3 DirectLight(const Intersection &i){
 
       float sphereSurfaceArea = 4.0f * M_PI * radius*radius;
 
-      vec4 currentPosition = i.position;  // current intersection position
+      // vec4 currentPosition = i.position;  // current intersection position
 
       vec3 power = vec3(lightColor);
 
@@ -204,7 +309,6 @@ vec3 DirectLight(const Intersection &i){
 }
 
 void EmitPhotons(float photonCount){
-  Intersection intermediate;
   Photon photon;
   vec4 direction;
 
@@ -433,166 +537,3 @@ bool Update(){
   }
   return true;
 }
-
- 
-// #define MAX_DIM 3
-// struct kd_node_t{
-//     double x[MAX_DIM];
-//     struct kd_node_t *left, *right;
-// };
- 
-// inline double dist(struct kd_node_t *a, struct kd_node_t *b, int dim){
-//     double t, d = 0;
-//     while (dim--) {
-//         t = a->x[dim] - b->x[dim];
-//         d += t * t;
-//     }
-//     return d;
-// }
-
-// inline void swap(struct kd_node_t *x, struct kd_node_t *y) {
-//     double tmp[MAX_DIM];
-//     memcpy(tmp,  x->x, sizeof(tmp));
-//     memcpy(x->x, y->x, sizeof(tmp));
-//     memcpy(y->x, tmp,  sizeof(tmp));
-// }
- 
- 
-// /* see quickselect method */
-// struct kd_node_t* find_median(struct kd_node_t *start, struct kd_node_t *end, int idx){
-//     if (end <= start) return NULL;
-//     if (end == start + 1)
-//         return start;
- 
-//     struct kd_node_t *p, *store, *md = start + (end - start) / 2;
-//     double pivot;
-//     while (1) {
-//         pivot = md->x[idx];
- 
-//         swap(md, end - 1);
-//         for (store = p = start; p < end; p++) {
-//             if (p->x[idx] < pivot) {
-//                 if (p != store)
-//                     swap(p, store);
-//                 store++;
-//             }
-//         }
-//         swap(store, end - 1);
- 
-//         /* median has duplicate values */
-//         if (store->x[idx] == md->x[idx])
-//             return md;
- 
-//         if (store > md) end = store;
-//         else        start = store;
-//     }
-// }
- 
-// struct kd_node_t* make_tree(struct kd_node_t *t, int len, int i, int dim){
-//     struct kd_node_t *n;
- 
-//     if (!len) return 0;
- 
-//     if ((n = find_median(t, t + len, i))){
-//         i = (i + 1) % dim;
-//         n->left  = make_tree(t, n - t, i, dim);
-//         n->right = make_tree(n + 1, t + len - (n + 1), i, dim);
-//     }
-//     return n;
-// }
- 
-// void nearest(struct kd_node_t *root, struct kd_node_t *nd, int i, int dim, struct kd_node_t **best, double *best_dist){
-//     double d, dx, dx2;
- 
-//     if (!root) return;
-//     d = dist(root, nd, dim);
-//     dx = root->x[i] - nd->x[i];
-//     dx2 = dx * dx;
- 
-//     visited++;
- 
-//     if (!*best || d < *best_dist) {
-//         *best_dist = d;
-//         *best = root;
-//     }
- 
-//     /* if chance of exact match is high */
-//     if (!*best_dist) return;
- 
-//     if (++i >= dim)
-//       i = 0;
- 
-//     nearest(dx > 0 ? root->left : root->right, nd, i, dim, best, best_dist);
-//     if (dx2 >= *best_dist) return;
-//     nearest(dx > 0 ? root->right : root->left, nd, i, dim, best, best_dist);
-// }
- 
-
-// // void test(void){
-// //     int i;
-
-// //     struct kd_node_t wp[] = {
-// //         {{2.0f, 3.0f, 4}}, {{5, 4, 3}}, {{9, 6, 100}}, {{4, 7, 4}}, {{8, 1, 4}}, {{7, 2, 20}},{{5, 4, 2}},{{5, 5, 2}},{{7, 5, 0}},{{7, 4, 0}},{{2, 4, 3}},{{2, 3, 3}}, {{9.2f,2,0}}
-// //     };
-
-
-// //     // // how do i do thissss
-// //     // for (int i = 0; i < photons.size(); i++){
-// //     //   wp[i] = {{photons[i].position.x, photons[i].position.y, photons[i].position.z}};
-// //     // }
-
-// //     struct kd_node_t testNode = {{9, 2, 1}};
-// //     struct kd_node_t *root, *found, *million;
-// //     double best_dist;
- 
-// //     root = make_tree(wp, sizeof(wp) / sizeof(wp[1]), 0, 3);
- 
-// //     visited = 0;
-// //     found = 0;
-// //     nearest(root, &testNode, 0, 3, &found, &best_dist);
- 
-// //     printf(">> WP tree\nsearching for (%g, %g, %g)\n"
-// //             "found (%g, %g, %g) dist %g\nseen %d nodes\n\n",
-// //             testNode.x[0], testNode.x[1], testNode.x[2],
-// //             found->x[0], found->x[1], found->x[2], sqrt(best_dist), visited);
- 
-// //     million = (struct kd_node_t*) calloc(N, sizeof(struct kd_node_t));
-// //     srand(time(0));
-// //     for (i = 0; i < N; i++)
-// //       rand_pt(million[i]);
- 
-// //     root = make_tree(million, N, 0, 3);
-// //     rand_pt(testNode);
- 
-// //     visited = 0;
-// //     found = 0;
-// //     nearest(root, &testNode, 0, 3, &found, &best_dist);
- 
-// //     printf(">> Million tree\nsearching for (%g, %g, %g)\n"
-// //             "found (%g, %g, %g) dist %g\nseen %d nodes\n",
-// //             testNode.x[0], testNode.x[1], testNode.x[2],
-// //             found->x[0], found->x[1], found->x[2],
-// //             sqrt(best_dist), visited);
- 
-// //     /* search many random points in million tree to see average behavior.
-// //        tree size vs avg nodes visited:
-// //        10      ~  7
-// //        100     ~ 16.5
-// //        1000        ~ 25.5
-// //        10000       ~ 32.8
-// //        100000      ~ 38.3
-// //        1000000     ~ 42.6
-// //        10000000    ~ 46.7              */
-// //     int sum = 0, test_runs = 100000;
-// //     for (i = 0; i < test_runs; i++) {
-// //         found = 0;
-// //         visited = 0;
-// //         rand_pt(testNode);
-// //         nearest(root, &testNode, 0, 3, &found, &best_dist);
-// //         sum += visited;
-// //     }
-// //       printf("\n>> Million tree\n"
-// //             "visited %d nodes for %d random findings (%f per lookup)\n",
-// //             sum, test_runs, sum/(double)test_runs);
-
-// // }
