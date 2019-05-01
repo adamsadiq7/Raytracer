@@ -58,27 +58,25 @@ struct Node {
 /* ------------------------------------------------------------GLOBALS--------------------------------------------------------------- */
 
 vector<Triangle> triangles;
-struct Node *root = NULL;
-vector<Photon> globalPhotonMap;
-float photonsToBeEmitted = 50000.0f; //this is the maximum
-int hit = 0;
-int absorbed = 0;
-
-/* global variable, so sue me */
-int visited;
-
 vec4 cameraPos(0.0, 0.0, -3, 1.0);
 vector<vec4> lightPositions = {
-    vec4(0.0, -0.4, -0.7, 1.0),
+    vec4(0.0, -0.2, -0.9, 1.0)
 };
+vec3 lightColor = 50.0f * vec3(1, 1, 1);
+vec3 indirectLight = 0.5f * vec3(1, 1, 1);
 
 float theta = 0.0;
 
-float diffuse = 0.7f;
-float specular = 0.1f;
+vector<Photon> globalPhotonMap;
+float photonsToBeEmitted = 200000.0f;
 
-vec3 lightColor = 10.0f * vec3(1, 1, 1);
-vec3 indirectLight = 0.5f * vec3(1, 1, 1);
+float radius = 0.3f;
+float diffuse = 0.5f;
+float specular = 0.0f;
+
+struct Node *root = NULL;
+/* global variable, so sue me */
+int visited;
 
 /* ------------------------------------------------------------GLOBALS--------------------------------------------------------------- */
 
@@ -93,7 +91,9 @@ float RandomNumber(float max);
 vec4 ConvertTo2D(vec4 v);
 vec3 FindSpecularDirection(vec3 normal, vec3 incidence);
 vec4 FindDiffuseDirection();
+vec3 DirectLight(const Intersection &i);
 struct Node* newNode(int arr[]);
+// void test(void);
 
 int main(int argc, char *argv[]){
 
@@ -101,8 +101,8 @@ int main(int argc, char *argv[]){
 
   LoadTestModel(triangles);
 
+  EmitPhotons(photonsToBeEmitted); //max
   while (Update()){
-    EmitPhotons(photonsToBeEmitted); //max
     Draw(screen);
     SDL_Renderframe(screen);
   }
@@ -123,12 +123,11 @@ vec4 ConvertTo2D(vec3 v){
 
 // / Place your drawing here /
 void Draw(screen *screen){
-  int count=0;
   /* Clear buffer */
   memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
 
   Intersection intersection;
-
+  vec3 directLight;
   float focalLength = (float)SCREEN_WIDTH;
 
   for (int x = 0; x < SCREEN_WIDTH; x++){
@@ -143,42 +142,88 @@ void Draw(screen *screen){
           for (int i = 0; i < globalPhotonMap.size(); i++){
 
             distance = (globalPhotonMap[i].position - vec3(intersection.position));
-            if (glm::length(distance) < 0.6){
+            if (glm::length(distance) < radius){
               colour +=  globalPhotonMap[i].lightPower/*/glm::length(distance)*/;
             }
             // PutPixelSDL(screen, ConvertTo2D(globalPhotonMap[i].position).x, ConvertTo2D(globalPhotonMap[i].position).y, vec3(1,1,1));
           }
-          // cout << count << " nearest neighbours found" << endl;
+          directLight = DirectLight(intersection);
+          // if (directLight != vec3(0,0,0)){
+          // colour *= directLight;
+          // }
           PutPixelSDL(screen, x, y, colour);
       }
     }
   }
 }
 
+vec3 DirectLight(const Intersection &i){
+
+  vec3 surfacePower(3);
+  float count = 0.0f;
+  vec3 result;
+  vec3 average;
+
+  for (int j = 0; j < lightPositions.size(); j++){
+  
+      Intersection intermediate;
+      vec3 direction = vec3(lightPositions[j] - i.position);
+      vec3 normalisedDir = glm::normalize(direction);
+      vec3 normal = vec3(triangles[i.triangleIndex].normal);
+
+      float radius = glm::distance(i.position, lightPositions[j]);
+
+      float sphereSurfaceArea = 4.0f * M_PI * radius*radius;
+
+      vec4 currentPosition = i.position;  // current intersection position
+
+      vec3 power = vec3(lightColor);
+
+      // if(closestIntersection(currentPosition, lightPositions[j]-currentPosition, triangles, intermediate)){
+      //   if (intermediate.distance < glm::distance(currentPosition, lightPositions[j])){
+      //     // power = vec3(0, 0, 0);
+      //   }
+      //   else{
+      //     count++;
+      //   }
+      // }
+      // else{
+      //   count++;
+      // }
+      
+      surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal)) / (sphereSurfaceArea));
+
+      surfacePower.x *= count/lightPositions.size();
+      surfacePower.y *= count/lightPositions.size();
+      surfacePower.z *= count/lightPositions.size();
+
+      surfacePower += triangles[i.triangleIndex].color * indirectLight; 
+      
+    }  
+  return surfacePower;
+}
 
 void EmitPhotons(float photonCount){
-
   Intersection intermediate;
   Photon photon;
   vec4 direction;
-  bool directionFound = false;
 
   for (int i = 0; i < photonCount; i++){
-    do{
-      direction = FindDiffuseDirection();
-      if(closestIntersection(lightPositions[0],direction,triangles,intermediate)){
-        directionFound = true;
-      }
-    } while(directionFound == false);
 
-    directionFound = false;
+    photon.position = vec3(0.2*RandomNumber(1.0f), -0.9, lightPositions[0].z + 0.2*RandomNumber(1.0f));
 
-    photon.position = vec3(lightPositions[0]);
-    photon.direction = vec3(direction);
+
+    float u = fabs(RandomNumber(1.0f));
+    float v = 2.0f * M_PI * fabs(RandomNumber(1.0f));
+    vec3 d = vec3(cos(v)*sqrt(u), sqrt(1.0f-u), sin(v)*sqrt(u));
+
+    // cout << "position:" << photon.position.x << ","<< photon.position.y << ","<<photon.position.z<<endl;
+    // cout << "d:" << d.x << "," << d.y << "," << d.z << endl << endl;
+
+    photon.direction = d;
     photon.lightPower = lightColor / photonCount;
     PhotonMap(photon);
   }
-
 }
 
 
@@ -203,21 +248,23 @@ vec3 FindSpecularDirection(vec3 normal, vec3 incidence){
 }
 
 void PhotonMap(Photon photon){
-  bool firstRun = true;
   Intersection intermediate;
   vec4 d;
   bool absorbed = false;
 
   while (!absorbed){
-    // cout << absorbed << endl;
-    // cout << "position: " << photon.position.x << "," << photon.position.y << "," << photon.position.z << endl;
 
     if (closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
       float nigerian = fabs(RandomNumber(1)); // russian roulette
 
       // diffuse reflections
-      if (nigerian <= diffuse){
+      if (nigerian <= triangles[intermediate.triangleIndex].material.x){
         photon.position = vec3(intermediate.position);
+        photon.direction = vec3(FindDiffuseDirection());
+
+        // if(!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
+        //   break;
+        // }
         do{
           photon.direction = vec3(FindDiffuseDirection());
         } while(!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate));
@@ -228,11 +275,11 @@ void PhotonMap(Photon photon){
       }
 
       //specular reflections
-      else if (nigerian > diffuse && nigerian < diffuse + specular){
+      else if (nigerian > triangles[intermediate.triangleIndex].material.x && nigerian < triangles[intermediate.triangleIndex].material.x + triangles[intermediate.triangleIndex].material.y){
         photon.position = vec3(intermediate.position);
         photon.direction = FindSpecularDirection(vec3(triangles[intermediate.triangleIndex].normal), photon.direction);
         if (!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
-          absorbed = true;
+          break;
         }
       }
 
@@ -242,46 +289,10 @@ void PhotonMap(Photon photon){
       }
     }
     else{
-      // cout << "direction2: " << photon.direction.x << "," << photon.direction.y << "," << photon.direction.z << endl <<endl;
+      break;
     }
   }
 }
-// for (int i = 0; i < photons.size(); i++){
-//   if (photons[i].active == true){
-//       vec4 direction;
-//       vec4 start;
-//       start.x = photons[i].position.x;
-//       start.y = photons[i].position.y;
-//       start.z = photons[i].position.z;
-//       start.w = 1;
-
-//     // cout << "photons[i].position: " << photons[i].position.x << "," << photons[i].position.y << "," << photons[i].position.z << endl;
-//     if (photons[i].reflection == 2){
-//       // equation: dr = di - 2 * normal * (normal*di)
-//       placeholder = photons[i].incidence - (photons[i].normal * 2.0f) * (photons[i].normal*photons[i].incidence);
-//       d.x = placeholder.x;
-//       d.y = placeholder.y;
-//       d.z = placeholder.z;
-//       d.w = 1;
-//     }
-//     else{
-//       do{
-//         x = RandomNumber(1);
-//         y = RandomNumber(1);
-//         z = RandomNumber(1);
-
-//         d = vec4(x, y, z, 1); // direction for photon
-//         direction = glm::normalize(d);
-
-//       } while (x * x + y * y + z * z > 1 && closestIntersection(start, direction, triangles, intermediate));
-//       // cout << x << "," << y << "," << z << endl;
-//     }
-
-//     // no longer regarding this pixel
-//     photons[i].active = false;
-
-//   }
-// }
 
 float RandomNumber(float max){
   int deno = max * 200;
@@ -517,71 +528,71 @@ bool Update(){
 // }
  
 
-// void test(void){
-//     int i;
+// // void test(void){
+// //     int i;
 
-//     struct kd_node_t wp[] = {
-//         {{2.0f, 3.0f, 4}}, {{5, 4, 3}}, {{9, 6, 100}}, {{4, 7, 4}}, {{8, 1, 4}}, {{7, 2, 20}},{{5, 4, 2}},{{5, 5, 2}},{{7, 5, 0}},{{7, 4, 0}},{{2, 4, 3}},{{2, 3, 3}}, {{9.2f,2,0}}
-//     };
+// //     struct kd_node_t wp[] = {
+// //         {{2.0f, 3.0f, 4}}, {{5, 4, 3}}, {{9, 6, 100}}, {{4, 7, 4}}, {{8, 1, 4}}, {{7, 2, 20}},{{5, 4, 2}},{{5, 5, 2}},{{7, 5, 0}},{{7, 4, 0}},{{2, 4, 3}},{{2, 3, 3}}, {{9.2f,2,0}}
+// //     };
 
 
-//     // // how do i do thissss
-//     // for (int i = 0; i < photons.size(); i++){
-//     //   wp[i] = {{photons[i].position.x, photons[i].position.y, photons[i].position.z}};
-//     // }
+// //     // // how do i do thissss
+// //     // for (int i = 0; i < photons.size(); i++){
+// //     //   wp[i] = {{photons[i].position.x, photons[i].position.y, photons[i].position.z}};
+// //     // }
 
-//     struct kd_node_t testNode = {{9, 2, 1}};
-//     struct kd_node_t *root, *found, *million;
-//     double best_dist;
+// //     struct kd_node_t testNode = {{9, 2, 1}};
+// //     struct kd_node_t *root, *found, *million;
+// //     double best_dist;
  
-//     root = make_tree(wp, sizeof(wp) / sizeof(wp[1]), 0, 3);
+// //     root = make_tree(wp, sizeof(wp) / sizeof(wp[1]), 0, 3);
  
-//     visited = 0;
-//     found = 0;
-//     nearest(root, &testNode, 0, 3, &found, &best_dist);
+// //     visited = 0;
+// //     found = 0;
+// //     nearest(root, &testNode, 0, 3, &found, &best_dist);
  
-//     printf(">> WP tree\nsearching for (%g, %g, %g)\n"
-//             "found (%g, %g, %g) dist %g\nseen %d nodes\n\n",
-//             testNode.x[0], testNode.x[1], testNode.x[2],
-//             found->x[0], found->x[1], found->x[2], sqrt(best_dist), visited);
+// //     printf(">> WP tree\nsearching for (%g, %g, %g)\n"
+// //             "found (%g, %g, %g) dist %g\nseen %d nodes\n\n",
+// //             testNode.x[0], testNode.x[1], testNode.x[2],
+// //             found->x[0], found->x[1], found->x[2], sqrt(best_dist), visited);
  
-//     million = (struct kd_node_t*) calloc(N, sizeof(struct kd_node_t));
-//     srand(time(0));
-//     for (i = 0; i < N; i++)
-//       rand_pt(million[i]);
+// //     million = (struct kd_node_t*) calloc(N, sizeof(struct kd_node_t));
+// //     srand(time(0));
+// //     for (i = 0; i < N; i++)
+// //       rand_pt(million[i]);
  
-//     root = make_tree(million, N, 0, 3);
-//     rand_pt(testNode);
+// //     root = make_tree(million, N, 0, 3);
+// //     rand_pt(testNode);
  
-//     visited = 0;
-//     found = 0;
-//     nearest(root, &testNode, 0, 3, &found, &best_dist);
+// //     visited = 0;
+// //     found = 0;
+// //     nearest(root, &testNode, 0, 3, &found, &best_dist);
  
-//     printf(">> Million tree\nsearching for (%g, %g, %g)\n"
-//             "found (%g, %g, %g) dist %g\nseen %d nodes\n",
-//             testNode.x[0], testNode.x[1], testNode.x[2],
-//             found->x[0], found->x[1], found->x[2],
-//             sqrt(best_dist), visited);
+// //     printf(">> Million tree\nsearching for (%g, %g, %g)\n"
+// //             "found (%g, %g, %g) dist %g\nseen %d nodes\n",
+// //             testNode.x[0], testNode.x[1], testNode.x[2],
+// //             found->x[0], found->x[1], found->x[2],
+// //             sqrt(best_dist), visited);
  
-//     /* search many random points in million tree to see average behavior.
-//        tree size vs avg nodes visited:
-//        10      ~  7
-//        100     ~ 16.5
-//        1000        ~ 25.5
-//        10000       ~ 32.8
-//        100000      ~ 38.3
-//        1000000     ~ 42.6
-//        10000000    ~ 46.7              */
-//     int sum = 0, test_runs = 100000;
-//     for (i = 0; i < test_runs; i++) {
-//         found = 0;
-//         visited = 0;
-//         rand_pt(testNode);
-//         nearest(root, &testNode, 0, 3, &found, &best_dist);
-//         sum += visited;
-//     }
-//       printf("\n>> Million tree\n"
-//             "visited %d nodes for %d random findings (%f per lookup)\n",
-//             sum, test_runs, sum/(double)test_runs);
+// //     /* search many random points in million tree to see average behavior.
+// //        tree size vs avg nodes visited:
+// //        10      ~  7
+// //        100     ~ 16.5
+// //        1000        ~ 25.5
+// //        10000       ~ 32.8
+// //        100000      ~ 38.3
+// //        1000000     ~ 42.6
+// //        10000000    ~ 46.7              */
+// //     int sum = 0, test_runs = 100000;
+// //     for (i = 0; i < test_runs; i++) {
+// //         found = 0;
+// //         visited = 0;
+// //         rand_pt(testNode);
+// //         nearest(root, &testNode, 0, 3, &found, &best_dist);
+// //         sum += visited;
+// //     }
+// //       printf("\n>> Million tree\n"
+// //             "visited %d nodes for %d random findings (%f per lookup)\n",
+// //             sum, test_runs, sum/(double)test_runs);
 
-// }
+// // }
