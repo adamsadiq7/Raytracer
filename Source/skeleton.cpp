@@ -17,8 +17,8 @@ using glm::vec4;
 
 SDL_Event event;
 
-#define SCREEN_WIDTH 512
-#define SCREEN_HEIGHT 512
+#define SCREEN_WIDTH 256
+#define SCREEN_HEIGHT 256
 #define FULLSCREEN_MODE false
 #define FOCAL_LENGTH SCREEN_HEIGHT
 
@@ -61,26 +61,29 @@ float theta = 0.0;
 vector<Photon> globalPhotonMap;
 vector<Photon*> globalPhotonPointers;
 KDTree kdTree;
-float photonsToBeEmitted = 2000.0f;
+float photonsToBeEmitted = 400000.0f;
 int currentDimension;
 
 int radianceCount = 100;
 
-float radius = 0.3f;
+float radius = 0.1f;
 float diffuse = 0.5f;
 float specular = 0.0f;
 
 int maxDepth = 3;
 int currentDepth = 0;
 
+int reflectCount = 0;
+
 /* global variable, so sue me */
 int visited;
 
+float neighbourCount = 0.0f;
 /* ------------------------------------------------------------GLOBALS--------------------------------------------------------------- */
 
 /* ------------------------------------------------------------FUNCTIONS--------------------------------------------------------------- */
 bool Update();
-void Draw(screen *screen);
+void Draw(screen *screen, bool render, bool reset);
 bool closestIntersection(vec4 start, vec4 dir, vector<Triangle> &triangles, Intersection &closestIntersection);
 void EmitPhotons(float number);
 void PhotonMap(Photon photon);
@@ -98,6 +101,7 @@ int GetCurrentMaxDimension();
 bool InAreaLight(Intersection intersection);
 vec3 FindReflectionColour(Intersection intersection, vec4 direction);
 vec3 CastRay(const vec4 orig, const vec4 dir);
+Photon Absorb(Photon photon, Intersection intersection);
 
 int main(int argc, char *argv[]){
 
@@ -106,10 +110,11 @@ int main(int argc, char *argv[]){
   LoadTestModel(triangles);
 
   EmitPhotons(photonsToBeEmitted);
-  PopulatePointerTree();
-  BalanceTree(globalPhotonPointers);
+  // cout << reflectCount;
+  // PopulatePointerTree();
+  // BalanceTree(globalPhotonPointers);
   while (Update()){
-    Draw(screen);
+    Draw(screen, true, false);
     SDL_Renderframe(screen);
   }
 
@@ -124,10 +129,6 @@ void LocatePhotons(Photon* rootNode, vector<Photon*> minHeap, Intersection inter
 }
 
 KDTree *BalanceTree(vector <Photon*> photonPointers){
-
-  // cout << "photonPointers size:" << photonPointers.size() << endl;
-
-  // cout << photonPointers[0] << endl;
 
   int dimension = FindMaxDimension();
 
@@ -228,9 +229,10 @@ vec4 ConvertTo2D(vec3 v){
 }
 
 // / Place your drawing here /
-void Draw(screen *screen){
+void Draw(screen *screen, bool render, bool reset){
   /* Clear buffer */
-  memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
+
+  if (reset) memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
 
   Intersection intersection;
   vec3 directLight;
@@ -256,27 +258,26 @@ void Draw(screen *screen){
           }
           else{
             for (int i = 0; i < globalPhotonMap.size(); i++){
-
               distance = (globalPhotonMap[i].position - vec3(intersection.position));
               if (glm::length(distance) < radius){
-                colour +=  globalPhotonMap[i].lightPower/*/glm::length(distance)*/;
+                colour += globalPhotonMap[i].lightPower;//*glm::length(distance)*/;
               }
-              // PutPixelSDL(screen, ConvertTo2D(globalPhotonMap[i].position).x, ConvertTo2D(globalPhotonMap[i].position).y, vec3(1,1,1));
+              // PutPixelSDL(screen, ConvertTo2D(globalPhotonMap[i].position).x, ConvertTo2D(globalPhotonMap[i].position).y, globalPhotonMap[i].lightPower);
             }
             directLight = DirectLight(intersection);
-
             PutPixelSDL(screen, x, y, colour);
           }
       }
     }
+    if (render) SDL_Renderframe(screen);
   }
 }
 
 vec4 Reflect(const vec4 I, const vec4 N){
-  // return glm::reflect(I,N);
-  return I - 2.0f * glm::dot(I,N) * N;
+  return glm::reflect(I,N);
+  // return I - 2.0f * glm::dot(I,N) * N;
 }
- 
+
 vec3 CastRay(const vec4 orig, const vec4 dir){
   Intersection intersection;
   vec3 currentMaterial;
@@ -304,7 +305,7 @@ vec3 DirectLight(const Intersection &i){
   vec3 result;
 
   for (int j = 0; j < lightPositions.size(); j++){
-  
+
       Intersection intermediate;
       vec3 direction = vec3(lightPositions[j] - i.position);
       vec3 normalisedDir = glm::normalize(direction);
@@ -329,24 +330,22 @@ vec3 DirectLight(const Intersection &i){
       else{
         count++;
       }
-      
+
       surfacePower = triangles[i.triangleIndex].color * power * (glm::max(0.0f, glm::dot(normalisedDir, normal)) / (sphereSurfaceArea));
 
       surfacePower.x *= count/lightPositions.size();
       surfacePower.y *= count/lightPositions.size();
       surfacePower.z *= count/lightPositions.size();
 
-      surfacePower += triangles[i.triangleIndex].color * indirectLight; 
-      
-    }  
+      surfacePower += triangles[i.triangleIndex].color * indirectLight;
+
+    }
   return surfacePower;
 }
 
 bool InAreaLight(Intersection intersection){
-  // cout << intersection.position.y << endl;
   if (intersection.position.x >= -0.2f && intersection.position.x <= 0.2f
   && intersection.position.y >= -1.0f && intersection.position.y <= -0.8f && intersection.position.z >= -0.7f &&intersection.position.z <= -0.3f){
-    // cout << intersection.position.y << endl;
     return true;
   }
   return false;
@@ -355,23 +354,115 @@ bool InAreaLight(Intersection intersection){
 void EmitPhotons(float photonCount){
   Photon photon;
   vec4 direction;
-
+  Intersection intersection;
+  vec3 d;
   for (int i = 0; i < photonCount; i++){
 
-    photon.position = vec3(0.2*RandomNumber(1.0f), -0.9, lightPositions[0].z + 0.2*RandomNumber(1.0f));
-
-
-    float u = fabs(RandomNumber(1.0f));
-    float v = 2.0f * M_PI * fabs(RandomNumber(1.0f));
-    vec3 d = vec3(cos(v)*sqrt(u), sqrt(1.0f-u), sin(v)*sqrt(u));
-
-    // cout << "position:" << photon.position.x << ","<< photon.position.y << ","<<photon.position.z<<endl;
-    // cout << "d:" << d.x << "," << d.y << "," << d.z << endl << endl;
+    do{
+      photon.position = vec3(0.2*RandomNumber(1.0f), -0.9, lightPositions[0].z + 0.2*RandomNumber(1.0f));
+      float u = fabs(RandomNumber(1.0f));
+      float v = 2.0f * M_PI * fabs(RandomNumber(1.0f));
+      d = vec3(cos(v)*sqrt(u), sqrt(1.0f-u), sin(v)*sqrt(u));
+    } while(!closestIntersection(vec4(photon.position,1),vec4(d,1),triangles,intersection));
 
     photon.direction = d;
-    photon.lightPower = lightColor / photonCount;
+
+    float random = fabs(RandomNumber(1.0f));
+    if (random <= 0.33333){
+      photon.lightPower = vec3(1,0,0);
+    }
+    else if (random <= 0.666667){
+      photon.lightPower = vec3(0,1,0);
+    }
+    else{
+      photon.lightPower = vec3(0,0,1);
+    }
     PhotonMap(photon);
   }
+}
+
+void PhotonMap(Photon photon){
+  Intersection intermediate;
+  vec4 d;
+  bool absorbed = false;
+
+  while (!absorbed){
+
+    if (closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
+
+      float russian = fabs(RandomNumber(1)); // russian roulette
+
+      vec3 material = triangles[intermediate.triangleIndex].material;
+      vec3 colour   = triangles[intermediate.triangleIndex].color;
+
+      // diffuse reflections
+      if (russian <= material.x){
+        float russianColour = fabs(RandomNumber(1));
+
+        // red photon
+        if (photon.lightPower == vec3(1,0,0)){
+          if (russianColour < colour.x){
+            photon = Absorb(photon, intermediate);
+            break;
+          }
+        }
+        // green photon
+        else if (photon.lightPower == vec3(0,1,0)){
+          if (russianColour < colour.y){
+            photon = Absorb(photon, intermediate);
+            break;
+          }
+        }
+        // blue photon
+        else{
+          if (russianColour < colour.z){
+            photon = Absorb(photon, intermediate);
+            break;
+          }
+        }
+
+        if (!absorbed){
+          reflectCount++;
+          photon.position = vec3(intermediate.position);
+          photon.direction = vec3(FindDiffuseDirection());
+
+          // if(!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
+          //   break;
+          // }
+          do{
+            photon.direction = vec3(FindDiffuseDirection());
+          } while(!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate));
+        }
+      }
+
+      //specular reflections
+      else if (russian > material.x && russian < material.x + material.y){
+        photon.position = vec3(intermediate.position);
+        photon.direction = vec3(Reflect(vec4(photon.direction,1), triangles[intermediate.triangleIndex].normal));
+        if (!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
+          break;
+        }
+      }
+
+      // absorption
+      else{
+        photon = Absorb(photon, intermediate);
+        absorbed = true;
+      }
+    }
+  }
+}
+
+Photon Absorb(Photon photon, Intersection intersection){
+  photon.position = vec3(intersection.position); // multiply the current surface colour by lightpower
+  photon.lightPower *= triangles[intersection.triangleIndex].color;
+  globalPhotonMap.push_back(photon); // add photon to global list;
+  return photon;
+}
+
+vec3 FindSpecularDirection(vec3 normal, vec3 incidence){
+  vec3 direction = incidence - (normal * 2.0f) * (normal*incidence);
+  return direction;
 }
 
 vec4 FindDiffuseDirection(){
@@ -387,58 +478,6 @@ vec4 FindDiffuseDirection(){
   vec4 direction = glm::normalize(d);
 
   return direction;
-}
-
-vec3 FindSpecularDirection(vec3 normal, vec3 incidence){
-  vec3 direction = incidence - (normal * 2.0f) * (normal*incidence);
-  return direction;
-}
-
-void PhotonMap(Photon photon){
-  Intersection intermediate;
-  vec4 d;
-  bool absorbed = false;
-
-  while (!absorbed){
-
-    if (closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
-      float nigerian = fabs(RandomNumber(1)); // russian roulette
-
-      // diffuse reflections
-      if (nigerian <= triangles[intermediate.triangleIndex].material.x){
-        photon.position = vec3(intermediate.position);
-        photon.direction = vec3(FindDiffuseDirection());
-
-        // if(!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
-        //   break;
-        // }
-        do{
-          photon.direction = vec3(FindDiffuseDirection());
-        } while(!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate));
-
-        photon.lightPower *= triangles[intermediate.triangleIndex].color; // multiply the current surface colour by lightpower
-
-        globalPhotonMap.push_back(photon); // add photon to global list;
-      }
-
-      //specular reflections
-      else if (nigerian > triangles[intermediate.triangleIndex].material.x && nigerian < triangles[intermediate.triangleIndex].material.x + triangles[intermediate.triangleIndex].material.y){
-        photon.position = vec3(intermediate.position);
-        photon.direction = FindSpecularDirection(vec3(triangles[intermediate.triangleIndex].normal), photon.direction);
-        if (!closestIntersection(vec4(photon.position, 1), vec4(photon.direction, 1), triangles, intermediate)){
-          break;
-        }
-      }
-
-      // absorption
-      else{
-        absorbed = true;
-      }
-    }
-    else{
-      break;
-    }
-  }
 }
 
 float RandomNumber(float max){
