@@ -17,7 +17,6 @@ public:
 	glm::vec3 color;
 	glm::vec3 material;
 
-
 	Triangle( glm::vec4 v0, glm::vec4 v1, glm::vec4 v2, glm::vec3 color, glm::vec3 material )
 		: v0(v0), v1(v1), v2(v2), color(color), material(material)
 	{
@@ -72,7 +71,6 @@ void LoadTestModel( std::vector<Triangle>& triangles )
 	vec4 G(L,L,L,1);
 	vec4 H(0,L,L,1);
 
-	// Floor:
 	triangles.push_back( Triangle( C, B, A, white, vec3(0.5f,0.0f,0.0f) ) );
 	triangles.push_back( Triangle( C, D, B, white, vec3(0.5f,0.0f,0.0f) ) );
 
@@ -106,6 +104,7 @@ void LoadTestModel( std::vector<Triangle>& triangles )
 	H = vec4( 82,165,225,1);
 
 	// Front
+
 	triangles.push_back( Triangle(E,B,A,red,vec3(0.5f,0.0f,0.0f)) );
 	triangles.push_back( Triangle(E,F,B,red, vec3(0.5f,0.0f,0.0f)) );
 
@@ -139,6 +138,7 @@ void LoadTestModel( std::vector<Triangle>& triangles )
 	H = vec4(314,330,456,1);
 
 	// Front
+
 	triangles.push_back( Triangle(E,B,A,blue,vec3(0.5f,0.0f,0.0f) ) );
 	triangles.push_back( Triangle(E,F,B,blue,vec3(0.5f,0.0f,0.0f) ) );
 

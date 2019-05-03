@@ -53,7 +53,7 @@ vec4 cameraPos(0.0, 0.0, -3, 1.0);
 vector<vec4> lightPositions = {
     vec4(0.0, -0.2, -0.9, 1.0)
 };
-vec3 lightColor = 40.0f * vec3(1, 1, 1);
+vec3 lightColor = 100.0f * vec3(1, 1, 1);
 vec3 indirectLight = 0.5f * vec3(1, 1, 1);
 
 float theta = 0.0;
@@ -61,7 +61,7 @@ float theta = 0.0;
 vector<Photon> globalPhotonMap;
 vector<Photon*> globalPhotonPointers;
 KDTree kdTree;
-float photonsToBeEmitted = 2000.0f;
+float photonsToBeEmitted = 1000000.0f;
 int currentDimension;
 
 int radianceCount = 100;
@@ -106,8 +106,8 @@ int main(int argc, char *argv[]){
   LoadTestModel(triangles);
 
   EmitPhotons(photonsToBeEmitted);
-  PopulatePointerTree();
-  BalanceTree(globalPhotonPointers);
+  // PopulatePointerTree();
+  // BalanceTree(globalPhotonPointers);
   while (Update()){
     Draw(screen);
     SDL_Renderframe(screen);
@@ -230,7 +230,7 @@ vec4 ConvertTo2D(vec3 v){
 // / Place your drawing here /
 void Draw(screen *screen){
   /* Clear buffer */
-  memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
+  // memset(screen->buffer, 0, screen->height * screen->width * sizeof(uint32_t));
 
   Intersection intersection;
   vec3 directLight;
@@ -259,6 +259,7 @@ void Draw(screen *screen){
 
               distance = (globalPhotonMap[i].position - vec3(intersection.position));
               if (glm::length(distance) < radius){
+                // cout << "neighbour found" << endl;
                 colour +=  globalPhotonMap[i].lightPower/*/glm::length(distance)*/;
               }
               // PutPixelSDL(screen, ConvertTo2D(globalPhotonMap[i].position).x, ConvertTo2D(globalPhotonMap[i].position).y, vec3(1,1,1));
@@ -269,6 +270,7 @@ void Draw(screen *screen){
           }
       }
     }
+    SDL_Renderframe(screen);
   }
 }
 
